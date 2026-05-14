@@ -1,4 +1,31 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
+import { YoutubeTranscript } from 'npm:youtube-transcript@1.2.1';
+
+function extractYouTubeId(url: string): string | null {
+  const patterns = [
+    /(?:youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/shorts\/|youtube\.com\/embed\/)([A-Za-z0-9_-]{11})/,
+  ];
+  for (const p of patterns) {
+    const m = url.match(p);
+    if (m) return m[1];
+  }
+  return null;
+}
+
+function isInstagramUrl(url: string): boolean {
+  return /instagram\.com\/(reel|p|tv)\//i.test(url);
+}
+
+async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+  try {
+    const items = await YoutubeTranscript.fetchTranscript(videoId);
+    if (!items?.length) return null;
+    return items.map((i: { text: string }) => i.text).join(' ').replace(/\s+/g, ' ').trim();
+  } catch (e) {
+    console.error('YouTube transcript fetch failed', e);
+    return null;
+  }
+}
 
 Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
@@ -18,6 +45,23 @@ Deno.serve(async (req) => {
         status: 500,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
+    }
+
+    // Try to extract a real transcript
+    let transcript: string | null = null;
+    let source: 'youtube-transcript' | 'instagram-url' | 'url-only' = 'url-only';
+
+    const ytId = extractYouTubeId(videoUrl);
+    if (ytId) {
+      transcript = await fetchYouTubeTranscript(ytId);
+      if (transcript) source = 'youtube-transcript';
+    } else if (isInstagramUrl(videoUrl)) {
+      source = 'instagram-url';
+    }
+
+    // Cap transcript length to keep prompt reasonable
+    if (transcript && transcript.length > 16000) {
+      transcript = transcript.slice(0, 16000) + '…';
     }
 
     const recipeSchema = {
@@ -71,15 +115,18 @@ Deno.serve(async (req) => {
     };
 
     const systemPrompt = `You are CookMate AI, a warm, knowledgeable cooking assistant — like a grandma guiding someone in the kitchen.
-Given a cooking video URL, infer the most likely dish and produce a complete, realistic recipe.
+Produce a complete, realistic, structured recipe.
 Rules:
-- Pick a plausible specific dish based on the URL slug/title if any hints exist; otherwise pick a popular dish.
+- If a transcript is provided, base the recipe STRICTLY on what is actually said/shown in the video. Extract the real dish name, ingredients, quantities, and steps from the transcript. Fill obvious gaps (e.g. salt to taste) sensibly but do not invent unrelated ingredients.
+- If no transcript is provided, infer the most likely dish from the URL slug/title.
 - Provide accurate ingredient quantities and units for the given servings.
 - Steps must be clear and ordered. Add a "duration" in seconds for steps that involve waiting/cooking time (omit for quick prep steps).
 - Every step MUST include a short, warm "tip" — a grandma-style insight or trick.
 - Estimate nutrition per serving in realistic numbers.`;
 
-    const userPrompt = `Generate a structured recipe for this cooking video URL: ${videoUrl}`;
+    const userPrompt = transcript
+      ? `Cooking video URL: ${videoUrl}\n\nFull spoken transcript from the video:\n"""\n${transcript}\n"""\n\nGenerate the structured recipe based on this transcript.`
+      : `Generate a structured recipe for this cooking video URL: ${videoUrl}\n(No transcript available — infer from the URL.)`;
 
     const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -134,7 +181,7 @@ Rules:
 
     const recipe = JSON.parse(toolCall.function.arguments);
 
-    return new Response(JSON.stringify({ recipe }), {
+    return new Response(JSON.stringify({ recipe, transcriptSource: source }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
