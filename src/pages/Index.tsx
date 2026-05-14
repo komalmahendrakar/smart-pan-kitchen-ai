@@ -5,9 +5,10 @@ import { ChefHat, Sparkles, Youtube, ArrowRight, Clock, BookOpen } from 'lucide-
 import { Button } from '@/components/ui/button';
 import { Input } from '@/components/ui/input';
 import { Card, CardContent } from '@/components/ui/card';
-import { generateMockRecipe } from '@/lib/mock-data';
 import { saveRecipe } from '@/lib/recipe-store';
 import { useToast } from '@/hooks/use-toast';
+import { supabase } from '@/integrations/supabase/client';
+import { Recipe } from '@/lib/types';
 
 const Index = () => {
   const [url, setUrl] = useState('');
@@ -21,12 +22,29 @@ const Index = () => {
       return;
     }
     setLoading(true);
-    // Simulate AI processing
-    await new Promise(r => setTimeout(r, 2000));
-    const recipe = generateMockRecipe(url);
-    saveRecipe(recipe);
-    setLoading(false);
-    navigate(`/recipe/${recipe.id}`);
+    try {
+      const { data, error } = await supabase.functions.invoke('generate-recipe', {
+        body: { videoUrl: url },
+      });
+      if (error) throw error;
+      if (!data?.recipe) throw new Error('No recipe returned');
+      const recipe: Recipe = {
+        ...data.recipe,
+        id: Date.now().toString(),
+        videoUrl: url,
+      };
+      saveRecipe(recipe);
+      navigate(`/recipe/${recipe.id}`);
+    } catch (err: any) {
+      console.error(err);
+      toast({
+        title: 'Could not generate recipe',
+        description: err?.message || 'Please try again.',
+        variant: 'destructive',
+      });
+    } finally {
+      setLoading(false);
+    }
   };
 
   return (
