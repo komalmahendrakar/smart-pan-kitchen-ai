@@ -120,8 +120,13 @@ export default function CookingMode() {
 
   if (!recipe || !step) {
     return (
-      <div className="flex min-h-screen items-center justify-center">
-        <p className="text-muted-foreground">Recipe not found.</p>
+      <div className="flex min-h-screen flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="text-muted-foreground">
+          We couldn't find this recipe — it may have been cleared from your device.
+        </p>
+        <Button onClick={() => navigate('/')} className="bg-primary">
+          Generate a new recipe
+        </Button>
       </div>
     );
   }
