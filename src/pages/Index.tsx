@@ -13,6 +13,7 @@ import { Recipe } from '@/lib/types';
 const Index = () => {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
+  const [language, setLanguage] = useState<'en' | 'hi'>('en');
   const navigate = useNavigate();
   const { toast } = useToast();
 
@@ -24,7 +25,7 @@ const Index = () => {
     setLoading(true);
     try {
       const { data, error } = await supabase.functions.invoke('generate-recipe', {
-        body: { videoUrl: url },
+        body: { videoUrl: url, language },
       });
       if (error) throw error;
       if (!data?.recipe) throw new Error('No recipe returned');
@@ -32,6 +33,7 @@ const Index = () => {
         ...data.recipe,
         id: Date.now().toString(),
         videoUrl: url,
+        language,
       };
       saveRecipe(recipe);
       navigate(`/recipe/${recipe.id}`);
@@ -81,6 +83,25 @@ const Index = () => {
             <div className="mb-3 flex items-center gap-2 text-sm font-semibold text-primary">
               <Sparkles className="h-4 w-4" />
               Paste a cooking video URL
+            </div>
+            <div className="mb-3 flex gap-2">
+              {([
+                { code: 'en', label: 'English' },
+                { code: 'hi', label: 'हिन्दी Hindi' },
+              ] as const).map(opt => (
+                <button
+                  key={opt.code}
+                  type="button"
+                  onClick={() => setLanguage(opt.code)}
+                  className={`flex-1 rounded-lg border px-3 py-1.5 text-xs font-semibold transition-colors ${
+                    language === opt.code
+                      ? 'border-primary bg-primary text-primary-foreground'
+                      : 'border-border bg-background text-muted-foreground hover:border-primary/40'
+                  }`}
+                >
+                  {opt.label}
+                </button>
+              ))}
             </div>
             <div className="flex gap-2">
               <div className="relative flex-1">

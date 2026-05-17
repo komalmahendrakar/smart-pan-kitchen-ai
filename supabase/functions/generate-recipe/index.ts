@@ -54,13 +54,14 @@ Deno.serve(async (req) => {
   if (req.method === 'OPTIONS') return new Response('ok', { headers: corsHeaders });
 
   try {
-    const { videoUrl } = await req.json();
+    const { videoUrl, language } = await req.json();
     if (!videoUrl || typeof videoUrl !== 'string') {
       return new Response(JSON.stringify({ error: 'videoUrl required' }), {
         status: 400,
         headers: { ...corsHeaders, 'Content-Type': 'application/json' },
       });
     }
+    const lang: 'en' | 'hi' = language === 'hi' ? 'hi' : 'en';
 
     const LOVABLE_API_KEY = Deno.env.get('LOVABLE_API_KEY');
     if (!LOVABLE_API_KEY) {
@@ -144,8 +145,13 @@ Deno.serve(async (req) => {
       additionalProperties: false,
     };
 
+    const languageInstruction = lang === 'hi'
+      ? `IMPORTANT LANGUAGE RULE: Write ALL output (dish name, ingredient names, step instructions, tips) in natural conversational Hindi using Devanagari script (हिन्दी). Keep "difficulty" as one of Easy/Medium/Hard (English) and keep "imageQuery" in English (it is used for image search). Units may stay in common Hindi/English mix (e.g. "कप", "चम्मच", "ग्राम").`
+      : `Write everything in clear, friendly English.`;
+
     const systemPrompt = `You are CookMate AI, a warm, knowledgeable cooking assistant — like a grandma guiding someone in the kitchen.
 Produce a complete, realistic, structured recipe.
+${languageInstruction}
 Rules:
 - If a transcript is provided, base the recipe STRICTLY on what is actually said/shown in the video. Extract the real dish name, ingredients, quantities, and steps from the transcript. Fill obvious gaps (e.g. salt to taste) sensibly but do not invent unrelated ingredients.
 - If no transcript is provided, infer the most likely dish from the URL slug/title.

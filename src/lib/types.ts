@@ -9,6 +9,7 @@ export interface Recipe {
   steps: CookingStep[];
   nutrition: NutritionInfo;
   imageUrl?: string;
+  language?: 'en' | 'hi';
 }
 
 export interface Ingredient {
