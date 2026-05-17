@@ -122,8 +122,9 @@ Deno.serve(async (req) => {
               instruction: { type: 'string' },
               duration: { type: 'number', description: 'Optional timer in seconds' },
               tip: { type: 'string', description: 'Warm grandma-style cooking tip' },
+              imageQuery: { type: 'string', description: 'A short 4-8 word visual description of this step for image generation, e.g. "chopping onions on wooden board" or "golden brown caramelizing onions in pan"' },
             },
-            required: ['number', 'instruction', 'tip'],
+            required: ['number', 'instruction', 'tip', 'imageQuery'],
             additionalProperties: false,
           },
         },
@@ -151,6 +152,7 @@ Rules:
 - Provide accurate ingredient quantities and units for the given servings.
 - Steps must be clear and ordered. Add a "duration" in seconds for steps that involve waiting/cooking time (omit for quick prep steps).
 - Every step MUST include a short, warm "tip" — a grandma-style insight or trick.
+- Every step MUST include an "imageQuery": a vivid 4-8 word visual phrase describing what that step looks like (used to fetch a step image). Be specific and visual.
 - Estimate nutrition per serving in realistic numbers.`;
 
     const userPrompt = transcript
