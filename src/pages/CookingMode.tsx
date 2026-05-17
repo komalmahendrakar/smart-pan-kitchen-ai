@@ -19,6 +19,7 @@ export default function CookingMode() {
 
   const step = recipe?.steps[stepIdx];
   const totalSteps = recipe?.steps.length || 0;
+  const langCode = recipe?.language === 'hi' ? 'hi-IN' : 'en-US';
 
   const goNext = useCallback(() => {
     setStepIdx(s => (s < totalSteps - 1 ? s + 1 : s));
@@ -29,17 +30,19 @@ export default function CookingMode() {
   const repeatStep = useCallback(() => {
     if (!step) return;
     const u = new SpeechSynthesisUtterance(step.instruction);
+    u.lang = langCode;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
-  }, [step]);
+  }, [step, langCode]);
 
   // Speak instruction whenever step changes (if voice is on)
   useEffect(() => {
     if (!voiceOn || !step) return;
     const u = new SpeechSynthesisUtterance(step.instruction);
+    u.lang = langCode;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
-  }, [stepIdx, voiceOn, step]);
+  }, [stepIdx, voiceOn, step, langCode]);
 
   // Voice recognition
   useEffect(() => {
@@ -53,19 +56,25 @@ export default function CookingMode() {
     const rec = new SR();
     rec.continuous = true;
     rec.interimResults = false;
-    rec.lang = 'en-US';
+    rec.lang = langCode;
 
     rec.onresult = (e: any) => {
       const transcript = Array.from(e.results)
         .slice(-1)
         .map((r: any) => r[0].transcript.toLowerCase().trim())
         .join(' ');
-      if (/\b(next|forward|continue)\b/.test(transcript)) goNext();
-      else if (/\b(previous|back|go back)\b/.test(transcript)) goPrev();
-      else if (/\b(repeat|again|say again)\b/.test(transcript)) repeatStep();
-      else if (/\b(start timer|start the timer|begin timer)\b/.test(transcript)) setTimerRunning(true);
-      else if (/\b(pause|stop timer|pause timer)\b/.test(transcript)) setTimerRunning(false);
-      else if (/\b(reset timer|restart timer)\b/.test(transcript)) {
+      const isNext = /\b(next|forward|continue)\b/.test(transcript) || /आगे|अगला|next/i.test(transcript);
+      const isPrev = /\b(previous|back|go back)\b/.test(transcript) || /पीछे|पिछला|वापस/i.test(transcript);
+      const isRepeat = /\b(repeat|again|say again)\b/.test(transcript) || /दोबारा|फिर से|दोहराओ/i.test(transcript);
+      const isStart = /\b(start timer|start the timer|begin timer)\b/.test(transcript) || /टाइमर चालू|टाइमर शुरू/i.test(transcript);
+      const isPause = /\b(pause|stop timer|pause timer)\b/.test(transcript) || /रोको|रुको|टाइमर बंद/i.test(transcript);
+      const isReset = /\b(reset timer|restart timer)\b/.test(transcript) || /टाइमर रीसेट|फिर से टाइमर/i.test(transcript);
+      if (isNext) goNext();
+      else if (isPrev) goPrev();
+      else if (isRepeat) repeatStep();
+      else if (isStart) setTimerRunning(true);
+      else if (isPause) setTimerRunning(false);
+      else if (isReset) {
         if (step?.duration) {
           setTimerSeconds(step.duration);
           setTimerRunning(false);
@@ -89,7 +98,7 @@ export default function CookingMode() {
       try { rec.stop(); } catch {}
       window.speechSynthesis.cancel();
     };
-  }, [voiceOn, goNext, goPrev, repeatStep, step]);
+  }, [voiceOn, goNext, goPrev, repeatStep, step, langCode]);
 
   // Reset timer when step changes
   useEffect(() => {
@@ -163,7 +172,9 @@ export default function CookingMode() {
 
       {voiceOn && (
         <div className="bg-primary/10 px-4 py-2 text-center text-xs text-primary">
-          🎙️ Listening — say "next", "previous", "repeat", "start timer", "pause"
+          🎙️ {recipe.language === 'hi'
+            ? 'सुन रहे हैं — कहें "अगला", "पिछला", "दोबारा", "टाइमर चालू", "रोको"'
+            : 'Listening — say "next", "previous", "repeat", "start timer", "pause"'}
         </div>
       )}
 
