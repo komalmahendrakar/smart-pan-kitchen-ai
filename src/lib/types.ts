@@ -22,6 +22,7 @@ export interface CookingStep {
   instruction: string;
   duration?: number; // in seconds
   tip?: string;
+  imageQuery?: string;
 }
 
 export interface NutritionInfo {
