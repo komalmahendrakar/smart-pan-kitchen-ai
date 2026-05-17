@@ -1,11 +1,12 @@
 import { useState, useEffect, useCallback } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw } from 'lucide-react';
+import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw, Mic, MicOff } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { getRecipeById } from '@/lib/recipe-store';
+import { toast } from 'sonner';
 
 export default function CookingMode() {
   const { id } = useParams();
@@ -14,9 +15,81 @@ export default function CookingMode() {
   const [stepIdx, setStepIdx] = useState(0);
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const [timerRunning, setTimerRunning] = useState(false);
+  const [voiceOn, setVoiceOn] = useState(false);
 
   const step = recipe?.steps[stepIdx];
   const totalSteps = recipe?.steps.length || 0;
+
+  const goNext = useCallback(() => {
+    setStepIdx(s => (s < totalSteps - 1 ? s + 1 : s));
+  }, [totalSteps]);
+  const goPrev = useCallback(() => {
+    setStepIdx(s => (s > 0 ? s - 1 : s));
+  }, []);
+  const repeatStep = useCallback(() => {
+    if (!step) return;
+    const u = new SpeechSynthesisUtterance(step.instruction);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }, [step]);
+
+  // Speak instruction whenever step changes (if voice is on)
+  useEffect(() => {
+    if (!voiceOn || !step) return;
+    const u = new SpeechSynthesisUtterance(step.instruction);
+    window.speechSynthesis.cancel();
+    window.speechSynthesis.speak(u);
+  }, [stepIdx, voiceOn, step]);
+
+  // Voice recognition
+  useEffect(() => {
+    if (!voiceOn) return;
+    const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
+    if (!SR) {
+      toast.error("Voice commands aren't supported in this browser. Try Chrome.");
+      setVoiceOn(false);
+      return;
+    }
+    const rec = new SR();
+    rec.continuous = true;
+    rec.interimResults = false;
+    rec.lang = 'en-US';
+
+    rec.onresult = (e: any) => {
+      const transcript = Array.from(e.results)
+        .slice(-1)
+        .map((r: any) => r[0].transcript.toLowerCase().trim())
+        .join(' ');
+      if (/\b(next|forward|continue)\b/.test(transcript)) goNext();
+      else if (/\b(previous|back|go back)\b/.test(transcript)) goPrev();
+      else if (/\b(repeat|again|say again)\b/.test(transcript)) repeatStep();
+      else if (/\b(start timer|start the timer|begin timer)\b/.test(transcript)) setTimerRunning(true);
+      else if (/\b(pause|stop timer|pause timer)\b/.test(transcript)) setTimerRunning(false);
+      else if (/\b(reset timer|restart timer)\b/.test(transcript)) {
+        if (step?.duration) {
+          setTimerSeconds(step.duration);
+          setTimerRunning(false);
+        }
+      }
+    };
+    rec.onerror = (e: any) => {
+      if (e.error === 'not-allowed') {
+        toast.error('Microphone access denied');
+        setVoiceOn(false);
+      }
+    };
+    rec.onend = () => {
+      // auto-restart while voice is on
+      if (voiceOn) {
+        try { rec.start(); } catch {}
+      }
+    };
+    try { rec.start(); } catch {}
+    return () => {
+      try { rec.stop(); } catch {}
+      window.speechSynthesis.cancel();
+    };
+  }, [voiceOn, goNext, goPrev, repeatStep, step]);
 
   // Reset timer when step changes
   useEffect(() => {
@@ -55,6 +128,11 @@ export default function CookingMode() {
 
   const progress = ((stepIdx + 1) / totalSteps) * 100;
 
+  const imagePrompt = encodeURIComponent(
+    `${step.imageQuery || step.instruction.split('.')[0]} — overhead food photography, ${recipe.name}, warm natural light, appetizing, realistic`
+  );
+  const stepImage = `https://image.pollinations.ai/prompt/${imagePrompt}?width=768&height=512&nologo=true&seed=${recipe.id}-${step.number}`;
+
   return (
     <div className="flex min-h-screen flex-col bg-background">
       {/* Top bar */}
@@ -65,10 +143,24 @@ export default function CookingMode() {
         <span className="text-sm font-semibold">
           Step {stepIdx + 1} of {totalSteps}
         </span>
-        <div className="w-5" />
+        <button
+          onClick={() => setVoiceOn(v => !v)}
+          aria-label="Toggle voice commands"
+          className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+            voiceOn ? 'bg-primary text-primary-foreground animate-pulse' : 'text-muted-foreground hover:text-foreground'
+          }`}
+        >
+          {voiceOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+        </button>
       </div>
 
       <Progress value={progress} className="h-1 rounded-none" />
+
+      {voiceOn && (
+        <div className="bg-primary/10 px-4 py-2 text-center text-xs text-primary">
+          🎙️ Listening — say "next", "previous", "repeat", "start timer", "pause"
+        </div>
+      )}
 
       {/* Step content */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-8">
@@ -81,6 +173,16 @@ export default function CookingMode() {
             transition={{ duration: 0.25 }}
             className="w-full max-w-md"
           >
+            <div className="mb-5 overflow-hidden rounded-2xl bg-muted shadow-lg">
+              <img
+                src={stepImage}
+                alt={`Step ${step.number}: ${step.instruction.slice(0, 80)}`}
+                className="aspect-[3/2] w-full object-cover"
+                loading="lazy"
+                onError={(e) => { (e.currentTarget.style.display = 'none'); }}
+              />
+            </div>
+
             <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-xl font-bold text-primary-foreground shadow-lg shadow-primary/25">
               {step.number}
             </div>
