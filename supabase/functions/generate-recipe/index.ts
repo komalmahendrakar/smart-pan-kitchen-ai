@@ -1,5 +1,4 @@
 import { corsHeaders } from 'npm:@supabase/supabase-js@2/cors';
-import { YoutubeTranscript } from 'npm:youtube-transcript@1.2.1';
 
 function extractYouTubeId(url: string): string | null {
   const patterns = [
@@ -16,14 +15,38 @@ function isInstagramUrl(url: string): boolean {
   return /instagram\.com\/(reel|p|tv)\//i.test(url);
 }
 
-async function fetchYouTubeTranscript(videoId: string): Promise<string | null> {
+async function fetchSupadataTranscript(
+  videoUrl: string,
+  apiKey: string,
+): Promise<{ text: string | null; error?: string }> {
   try {
-    const items = await YoutubeTranscript.fetchTranscript(videoId);
-    if (!items?.length) return null;
-    return items.map((i: { text: string }) => i.text).join(' ').replace(/\s+/g, ' ').trim();
+    // Supadata transcript endpoint — works for YouTube, Instagram, TikTok, etc.
+    // Docs: https://supadata.ai/documentation/transcript
+    const endpoint = `https://api.supadata.ai/v1/transcript?url=${encodeURIComponent(videoUrl)}&text=true`;
+    const resp = await fetch(endpoint, {
+      headers: { 'x-api-key': apiKey },
+    });
+    if (!resp.ok) {
+      const body = await resp.text();
+      console.error('Supadata error', resp.status, body);
+      return { text: null, error: `Supadata ${resp.status}` };
+    }
+    const data = await resp.json();
+    // Response shape: { content: string, lang: string, ... } when text=true
+    // or { content: [{text,...}], ... } when text=false. Handle both.
+    let text: string | null = null;
+    if (typeof data?.content === 'string') {
+      text = data.content;
+    } else if (Array.isArray(data?.content)) {
+      text = data.content.map((c: { text?: string }) => c.text ?? '').join(' ');
+    } else if (typeof data?.transcript === 'string') {
+      text = data.transcript;
+    }
+    text = text?.replace(/\s+/g, ' ').trim() || null;
+    return { text };
   } catch (e) {
-    console.error('YouTube transcript fetch failed', e);
-    return null;
+    console.error('Supadata fetch failed', e);
+    return { text: null, error: (e as Error).message };
   }
 }
 
@@ -49,14 +72,20 @@ Deno.serve(async (req) => {
 
     // Try to extract a real transcript
     let transcript: string | null = null;
-    let source: 'youtube-transcript' | 'instagram-url' | 'url-only' = 'url-only';
+    let source: 'supadata-youtube' | 'supadata-instagram' | 'supadata-other' | 'url-only' = 'url-only';
 
+    const SUPADATA_API_KEY = Deno.env.get('SUPADATA_API_KEY');
     const ytId = extractYouTubeId(videoUrl);
-    if (ytId) {
-      transcript = await fetchYouTubeTranscript(ytId);
-      if (transcript) source = 'youtube-transcript';
-    } else if (isInstagramUrl(videoUrl)) {
-      source = 'instagram-url';
+    const isIg = isInstagramUrl(videoUrl);
+
+    if (SUPADATA_API_KEY) {
+      const { text } = await fetchSupadataTranscript(videoUrl, SUPADATA_API_KEY);
+      if (text) {
+        transcript = text;
+        source = ytId ? 'supadata-youtube' : isIg ? 'supadata-instagram' : 'supadata-other';
+      }
+    } else {
+      console.warn('SUPADATA_API_KEY not set — falling back to URL-only inference');
     }
 
     // Cap transcript length to keep prompt reasonable
