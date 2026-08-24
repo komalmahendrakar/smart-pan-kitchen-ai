@@ -62,7 +62,8 @@ Deno.serve(async (req) => {
       });
     }
 
-    return new Response(JSON.stringify({ image: `data:image/png;base64,${b64}` }), {
+    const mime = b64.startsWith('/9j/') ? 'image/jpeg' : 'image/png';
+    return new Response(JSON.stringify({ image: `data:${mime};base64,${b64}` }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
