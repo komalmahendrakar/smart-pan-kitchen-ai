@@ -220,14 +220,25 @@ export default function CookingMode() {
             transition={{ duration: 0.25 }}
             className="w-full max-w-md"
           >
-            <div className="mb-5 overflow-hidden rounded-2xl bg-muted shadow-lg">
-              <img
-                src={stepImage}
-                alt={`Step ${step.number}: ${step.instruction.slice(0, 80)}`}
-                className="aspect-[3/2] w-full object-cover"
-                loading="lazy"
-                onError={(e) => { (e.currentTarget.style.display = 'none'); }}
-              />
+            <div className="mb-5 flex aspect-[3/2] w-full items-center justify-center overflow-hidden rounded-2xl bg-muted shadow-lg">
+              {stepImage ? (
+                <img
+                  src={stepImage}
+                  alt={`Step ${step.number}: ${step.instruction.slice(0, 80)}`}
+                  className="h-full w-full object-cover"
+                />
+              ) : (
+                <div className="flex flex-col items-center gap-2 text-muted-foreground">
+                  {imageLoading ? (
+                    <>
+                      <Loader2 className="h-6 w-6 animate-spin" />
+                      <span className="text-xs">Cooking up a photo…</span>
+                    </>
+                  ) : (
+                    <ImageIcon className="h-6 w-6 opacity-50" />
+                  )}
+                </div>
+              )}
             </div>
 
             <div className="mb-6 flex h-12 w-12 items-center justify-center rounded-2xl bg-primary text-xl font-bold text-primary-foreground shadow-lg shadow-primary/25">
