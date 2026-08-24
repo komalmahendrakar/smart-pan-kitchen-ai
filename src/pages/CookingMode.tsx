@@ -177,10 +177,6 @@ export default function CookingMode() {
 
   const progress = ((stepIdx + 1) / totalSteps) * 100;
 
-  const imagePrompt = encodeURIComponent(
-    `${step.imageQuery || step.instruction.split('.')[0]} — overhead food photography, ${recipe.name}, warm natural light, appetizing, realistic`
-  );
-  const stepImage = `https://image.pollinations.ai/prompt/${imagePrompt}?width=768&height=512&nologo=true&seed=${recipe.id}-${step.number}`;
 
   return (
     <div className="flex min-h-screen flex-col bg-background">
