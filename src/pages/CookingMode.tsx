@@ -1,11 +1,12 @@
-import { useState, useEffect, useCallback } from 'react';
+import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw, Mic, MicOff } from 'lucide-react';
+import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw, Mic, MicOff, ImageIcon, Loader2 } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { getRecipeById } from '@/lib/recipe-store';
+import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
 
 export default function CookingMode() {
@@ -16,6 +17,8 @@ export default function CookingMode() {
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const [timerRunning, setTimerRunning] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
+  const [stepImage, setStepImage] = useState<string | null>(null);
+  const [imageLoading, setImageLoading] = useState(false);
 
   const step = recipe?.steps[stepIdx];
   const totalSteps = recipe?.steps.length || 0;
@@ -27,24 +30,57 @@ export default function CookingMode() {
   const goPrev = useCallback(() => {
     setStepIdx(s => (s > 0 ? s - 1 : s));
   }, []);
-  const repeatStep = useCallback(() => {
-    if (!step) return;
-    const u = new SpeechSynthesisUtterance(step.instruction);
+
+  const speak = useCallback((text: string) => {
+    if (!('speechSynthesis' in window)) return;
+    const u = new SpeechSynthesisUtterance(text);
     u.lang = langCode;
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
-  }, [step, langCode]);
+  }, [langCode]);
+
+  // Keep latest handlers in a ref so recognition isn't recreated on every step change
+  const handlersRef = useRef({ goNext, goPrev, speak, step });
+  useEffect(() => {
+    handlersRef.current = { goNext, goPrev, speak, step };
+  }, [goNext, goPrev, speak, step]);
 
   // Speak instruction whenever step changes (if voice is on)
   useEffect(() => {
     if (!voiceOn || !step) return;
-    const u = new SpeechSynthesisUtterance(step.instruction);
-    u.lang = langCode;
-    window.speechSynthesis.cancel();
-    window.speechSynthesis.speak(u);
-  }, [stepIdx, voiceOn, step, langCode]);
+    speak(step.instruction);
+  }, [stepIdx, voiceOn, step, speak]);
 
-  // Voice recognition
+  // Step image generation (cached per recipe/step in localStorage)
+  useEffect(() => {
+    if (!recipe || !step) return;
+    const cacheKey = `cookmate-step-img:${recipe.id}:${step.number}`;
+    const cached = localStorage.getItem(cacheKey);
+    if (cached) {
+      setStepImage(cached);
+      setImageLoading(false);
+      return;
+    }
+    let cancelled = false;
+    setStepImage(null);
+    setImageLoading(true);
+    const prompt = `${step.imageQuery || step.instruction.split('.')[0]} — for the dish ${recipe.name}`.slice(0, 400);
+    supabase.functions
+      .invoke('generate-step-image', { body: { prompt } })
+      .then(({ data, error }) => {
+        if (cancelled) return;
+        if (error || !data?.image) {
+          setImageLoading(false);
+          return;
+        }
+        try { localStorage.setItem(cacheKey, data.image); } catch { /* quota */ }
+        setStepImage(data.image);
+        setImageLoading(false);
+      });
+    return () => { cancelled = true; };
+  }, [recipe?.id, step?.number, recipe, step]);
+
+  // Voice recognition — created once per voiceOn/language change
   useEffect(() => {
     if (!voiceOn) return;
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
@@ -53,52 +89,51 @@ export default function CookingMode() {
       setVoiceOn(false);
       return;
     }
+    let stopped = false;
     const rec = new SR();
     rec.continuous = true;
     rec.interimResults = false;
     rec.lang = langCode;
 
     rec.onresult = (e: any) => {
-      const transcript = Array.from(e.results)
-        .slice(-1)
-        .map((r: any) => r[0].transcript.toLowerCase().trim())
-        .join(' ');
-      const isNext = /\b(next|forward|continue)\b/.test(transcript) || /आगे|अगला|next/i.test(transcript);
+      const transcript = String(e.results[e.results.length - 1][0].transcript).toLowerCase().trim();
+      const h = handlersRef.current;
+      const isNext = /\b(next|forward|continue)\b/.test(transcript) || /आगे|अगला/i.test(transcript);
       const isPrev = /\b(previous|back|go back)\b/.test(transcript) || /पीछे|पिछला|वापस/i.test(transcript);
       const isRepeat = /\b(repeat|again|say again)\b/.test(transcript) || /दोबारा|फिर से|दोहराओ/i.test(transcript);
       const isStart = /\b(start timer|start the timer|begin timer)\b/.test(transcript) || /टाइमर चालू|टाइमर शुरू/i.test(transcript);
       const isPause = /\b(pause|stop timer|pause timer)\b/.test(transcript) || /रोको|रुको|टाइमर बंद/i.test(transcript);
-      const isReset = /\b(reset timer|restart timer)\b/.test(transcript) || /टाइमर रीसेट|फिर से टाइमर/i.test(transcript);
-      if (isNext) goNext();
-      else if (isPrev) goPrev();
-      else if (isRepeat) repeatStep();
-      else if (isStart) setTimerRunning(true);
-      else if (isPause) setTimerRunning(false);
-      else if (isReset) {
-        if (step?.duration) {
-          setTimerSeconds(step.duration);
+      const isReset = /\b(reset timer|restart timer)\b/.test(transcript) || /टाइमर रीसेट/i.test(transcript);
+      if (isReset) {
+        if (h.step?.duration) {
+          setTimerSeconds(h.step.duration);
           setTimerRunning(false);
         }
-      }
+      } else if (isStart) setTimerRunning(true);
+      else if (isPause) setTimerRunning(false);
+      else if (isNext) h.goNext();
+      else if (isPrev) h.goPrev();
+      else if (isRepeat && h.step) h.speak(h.step.instruction);
     };
     rec.onerror = (e: any) => {
-      if (e.error === 'not-allowed') {
-        toast.error('Microphone access denied');
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
+        toast.error('Microphone access denied — allow mic access to use voice commands.');
+        stopped = true;
         setVoiceOn(false);
       }
     };
     rec.onend = () => {
-      // auto-restart while voice is on
-      if (voiceOn) {
-        try { rec.start(); } catch {}
+      if (!stopped) {
+        try { rec.start(); } catch { /* already starting */ }
       }
     };
-    try { rec.start(); } catch {}
+    try { rec.start(); } catch { /* already started */ }
     return () => {
-      try { rec.stop(); } catch {}
+      stopped = true;
+      try { rec.stop(); } catch { /* noop */ }
       window.speechSynthesis.cancel();
     };
-  }, [voiceOn, goNext, goPrev, repeatStep, step, langCode]);
+  }, [voiceOn, langCode]);
 
   // Reset timer when step changes
   useEffect(() => {
