@@ -53,6 +53,9 @@ const Index = () => {
         language,
       };
       saveRecipe(recipe);
+      const next = getUsedToday() + 1;
+      localStorage.setItem(todayKey(), String(next));
+      setUsedToday(next);
       navigate(`/recipe/${recipe.id}`);
     } catch (err: any) {
       console.error(err);
