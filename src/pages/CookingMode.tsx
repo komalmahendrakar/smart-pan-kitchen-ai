@@ -51,34 +51,29 @@ export default function CookingMode() {
     speak(step.instruction);
   }, [stepIdx, voiceOn, step, speak]);
 
-  // Step image generation (cached per recipe/step in localStorage)
+  // Load cached step image (no auto-generation — images are on demand to save credits)
   useEffect(() => {
     if (!recipe || !step) return;
     const cacheKey = `cookmate-step-img:${recipe.id}:${step.number}`;
-    const cached = localStorage.getItem(cacheKey);
-    if (cached) {
-      setStepImage(cached);
-      setImageLoading(false);
-      return;
-    }
-    let cancelled = false;
-    setStepImage(null);
+    setStepImage(localStorage.getItem(cacheKey));
+    setImageLoading(false);
+  }, [recipe?.id, step?.number, recipe, step]);
+
+  const generateStepImage = useCallback(async () => {
+    if (!recipe || !step) return;
+    const cacheKey = `cookmate-step-img:${recipe.id}:${step.number}`;
     setImageLoading(true);
     const prompt = `${step.imageQuery || step.instruction.split('.')[0]} — for the dish ${recipe.name}`.slice(0, 400);
-    supabase.functions
-      .invoke('generate-step-image', { body: { prompt } })
-      .then(({ data, error }) => {
-        if (cancelled) return;
-        if (error || !data?.image) {
-          setImageLoading(false);
-          return;
-        }
-        try { localStorage.setItem(cacheKey, data.image); } catch { /* quota */ }
-        setStepImage(data.image);
-        setImageLoading(false);
-      });
-    return () => { cancelled = true; };
-  }, [recipe?.id, step?.number, recipe, step]);
+    const { data, error } = await supabase.functions.invoke('generate-step-image', { body: { prompt } });
+    setImageLoading(false);
+    if (error || !data?.image) {
+      toast.error('Could not generate a photo for this step.');
+      return;
+    }
+    try { localStorage.setItem(cacheKey, data.image); } catch { /* quota */ }
+    setStepImage(data.image);
+  }, [recipe, step]);
+
 
   // Voice recognition — created once per voiceOn/language change
   useEffect(() => {
