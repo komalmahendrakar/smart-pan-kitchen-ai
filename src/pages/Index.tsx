@@ -10,19 +10,36 @@ import { useToast } from '@/hooks/use-toast';
 import { supabase } from '@/integrations/supabase/client';
 import { Recipe } from '@/lib/types';
 
+const DAILY_LIMIT = 5;
+const todayKey = () => `cookmate-daily:${new Date().toISOString().slice(0, 10)}`;
+const getUsedToday = () => Number(localStorage.getItem(todayKey()) || '0');
+
 const Index = () => {
   const [url, setUrl] = useState('');
   const [loading, setLoading] = useState(false);
   const [language, setLanguage] = useState<'en' | 'hi'>('en');
+  const [usedToday, setUsedToday] = useState(getUsedToday);
   const navigate = useNavigate();
   const { toast } = useToast();
+
+  const remaining = Math.max(0, DAILY_LIMIT - usedToday);
 
   const handleGenerate = async () => {
     if (!url.trim()) {
       toast({ title: 'Please paste a video URL', variant: 'destructive' });
       return;
     }
+    if (getUsedToday() >= DAILY_LIMIT) {
+      setUsedToday(getUsedToday());
+      toast({
+        title: 'Daily limit reached',
+        description: `You can generate ${DAILY_LIMIT} recipes per day. Try again tomorrow!`,
+        variant: 'destructive',
+      });
+      return;
+    }
     setLoading(true);
+
     try {
       const { data, error } = await supabase.functions.invoke('generate-recipe', {
         body: { videoUrl: url, language },
@@ -36,6 +53,9 @@ const Index = () => {
         language,
       };
       saveRecipe(recipe);
+      const next = getUsedToday() + 1;
+      localStorage.setItem(todayKey(), String(next));
+      setUsedToday(next);
       navigate(`/recipe/${recipe.id}`);
     } catch (err: any) {
       console.error(err);
@@ -133,6 +153,12 @@ const Index = () => {
                 )}
               </Button>
             </div>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              {remaining > 0
+                ? `${remaining} of ${DAILY_LIMIT} recipes left today`
+                : 'Daily limit reached — resets tomorrow'}
+            </p>
+
           </CardContent>
         </Card>
       </motion.div>
