@@ -83,7 +83,7 @@ const Index = () => {
             <ChefHat className="h-8 w-8 text-primary-foreground" />
           </div>
           <h1 className="mb-2 text-3xl font-bold tracking-tight">
-            CookMate AI
+            Smart Pan 
           </h1>
           <p className="text-muted-foreground">
             Your smart cooking assistant — paste a video, get a recipe!
