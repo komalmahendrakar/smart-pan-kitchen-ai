@@ -153,6 +153,12 @@ const Index = () => {
                 )}
               </Button>
             </div>
+            <p className="mt-2 text-center text-xs text-muted-foreground">
+              {remaining > 0
+                ? `${remaining} of ${DAILY_LIMIT} recipes left today`
+                : 'Daily limit reached — resets tomorrow'}
+            </p>
+
           </CardContent>
         </Card>
       </motion.div>
