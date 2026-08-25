@@ -230,9 +230,15 @@ export default function CookingMode() {
                       <span className="text-xs">Cooking up a photo…</span>
                     </>
                   ) : (
-                    <ImageIcon className="h-6 w-6 opacity-50" />
+                    <>
+                      <ImageIcon className="h-6 w-6 opacity-50" />
+                      <Button size="sm" variant="outline" onClick={generateStepImage}>
+                        Show photo
+                      </Button>
+                    </>
                   )}
                 </div>
+
               )}
             </div>
 
