@@ -9,7 +9,7 @@ export type VoiceCommand =
 
 /** Fuzzy command matching — tolerates common mis-hearings from speech engines. */
 export function matchCommand(rawTranscript: string): VoiceCommand {
-  const t = rawTranscript.toLowerCase().replace(/[^\p{L}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const t = rawTranscript.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
   if (!t) return null;
 
   const has = (words: string[]) => words.some(w => t.includes(w));
