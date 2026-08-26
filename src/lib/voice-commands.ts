@@ -17,9 +17,9 @@ export function matchCommand(rawTranscript: string): VoiceCommand {
   if (has(['reset timer', 'restart timer', 'reset the timer', 'टाइमर रीसेट', 'टाइमर फिर'])) return 'reset-timer';
   if (has(['start timer', 'start the timer', 'begin timer', 'stat timer', 'timer start', 'टाइमर चालू', 'टाइमर शुरू'])) return 'start-timer';
   if (has(['pause timer', 'stop timer', 'pause', 'stop', 'रोको', 'रुको', 'टाइमर बंद'])) return 'pause-timer';
-  if (has(['repeat', 'again', 'say again', 'read it', 'what', 'दोबारा', 'फिर से', 'दोहराओ'])) return 'repeat';
+  if (has(['repeat', 'again', 'say again', 'read it', 'what', 'रिपीट', 'रीपीट', 'ریپیٹ', 'رپیٹ', 'दोबारा', 'फिर से', 'दोहराओ'])) return 'repeat';
   if (has(['previous', 'preview', 'previews', 'prev', 'go back', 'back', 'last step', 'पीछे', 'पिछला', 'वापस'])) return 'previous';
-  if (has(['next', 'neck', 'nex', 'necks', 'text step', 'next step', 'forward', 'continue', 'go on', 'done', 'आगे', 'अगला', 'हो गया'])) return 'next';
+  if (has(['next', 'neck', 'nex', 'necks', 'नेक्स्ट', 'नैक्स्ट', 'नेकस्ट', 'نیکسٹ', 'نیکست', 'نيكست', 'text step', 'next step', 'forward', 'continue', 'go on', 'done', 'आगे', 'अगला', 'हो गया'])) return 'next';
   return null;
 }
 
