@@ -384,7 +384,24 @@ export default function CookingMode() {
 
       {/* Navigation */}
       <div className="border-t bg-card/80 px-4 py-4 backdrop-blur-sm">
+        <div className="mx-auto mb-3 max-w-md">
+          <Button
+            variant={recording ? 'default' : 'outline'}
+            className={`w-full gap-2 py-5 text-sm font-semibold ${recording ? 'bg-primary animate-pulse' : ''}`}
+            onClick={togglePushToTalk}
+            disabled={transcribing}
+          >
+            {transcribing ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Understanding…</>
+            ) : recording ? (
+              <><Radio className="h-4 w-4" /> Tap when done speaking</>
+            ) : (
+              <><Mic className="h-4 w-4" /> Tap to speak a command</>
+            )}
+          </Button>
+        </div>
         <div className="mx-auto flex max-w-md gap-3">
+
           <Button
             variant="outline"
             className="flex-1 gap-1 py-6 text-base"
