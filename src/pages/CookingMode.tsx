@@ -281,6 +281,14 @@ export default function CookingMode() {
         </div>
       )}
 
+      {heard && (
+        <div className="px-4 pt-2 text-center text-xs font-medium text-muted-foreground">
+          Heard: {heard}
+        </div>
+      )}
+
+
+
       {/* Step content */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-8">
         <AnimatePresence mode="wait">
