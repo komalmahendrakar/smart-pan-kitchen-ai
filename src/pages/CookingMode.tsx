@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw, Mic, MicOff, ImageIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw, Mic, MicOff, ImageIcon, Loader2, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { getRecipeById } from '@/lib/recipe-store';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { matchCommand, COMMAND_LABEL, startWavRecording, type VoiceCommand } from '@/lib/voice-commands';
 
 export default function CookingMode() {
   const { id } = useParams();
@@ -19,6 +20,11 @@ export default function CookingMode() {
   const [voiceOn, setVoiceOn] = useState(false);
   const [stepImage, setStepImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [heard, setHeard] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const stopRecRef = useRef<null | (() => Promise<Blob>)>(null);
+
 
   const step = recipe?.steps[stepIdx];
   const totalSteps = recipe?.steps.length || 0;
@@ -75,12 +81,90 @@ export default function CookingMode() {
   }, [recipe, step]);
 
 
-  // Voice recognition — created once per voiceOn/language change
+  // Apply a recognized command
+  const applyCommand = useCallback((cmd: VoiceCommand) => {
+    const h = handlersRef.current;
+    if (!cmd) return false;
+    switch (cmd) {
+      case 'reset-timer':
+        if (h.step?.duration) {
+          setTimerSeconds(h.step.duration);
+          setTimerRunning(false);
+        }
+        break;
+      case 'start-timer':
+        setTimerRunning(true);
+        break;
+      case 'pause-timer':
+        setTimerRunning(false);
+        break;
+      case 'next':
+        h.goNext();
+        break;
+      case 'previous':
+        h.goPrev();
+        break;
+      case 'repeat':
+        if (h.step) h.speak(h.step.instruction);
+        break;
+    }
+    setHeard(COMMAND_LABEL[cmd]);
+    return true;
+  }, []);
+
+  const applyRef = useRef(applyCommand);
+  useEffect(() => {
+    applyRef.current = applyCommand;
+  }, [applyCommand]);
+
+  // Push-to-talk: record a short clip and transcribe with AI (accurate fallback)
+  const togglePushToTalk = useCallback(async () => {
+    if (transcribing) return;
+    if (recording && stopRecRef.current) {
+      const stop = stopRecRef.current;
+      stopRecRef.current = null;
+      setRecording(false);
+      setTranscribing(true);
+      try {
+        const blob = await stop();
+        if (blob.size < 2048) {
+          toast.error('That was too short — hold the button while you speak.');
+          return;
+        }
+        const form = new FormData();
+        form.append('file', blob, 'command.wav');
+        form.append('language', recipe?.language === 'hi' ? 'hi' : 'en');
+        const { data, error } = await supabase.functions.invoke('transcribe-command', { body: form });
+        if (error || !data?.text) {
+          toast.error('Could not understand that — try again.');
+          return;
+        }
+        setHeard(`"${data.text}"`);
+        if (!applyRef.current(matchCommand(data.text))) {
+          toast.error(`Heard "${data.text}" — try "next", "previous" or "repeat".`);
+        }
+      } catch {
+        toast.error('Voice input failed.');
+      } finally {
+        setTranscribing(false);
+      }
+      return;
+    }
+    try {
+      stopRecRef.current = await startWavRecording();
+      setRecording(true);
+      setHeard(null);
+    } catch {
+      toast.error('Microphone access is needed for voice commands.');
+    }
+  }, [recording, transcribing, recipe?.language]);
+
+  // Continuous browser recognition with fuzzy matching
   useEffect(() => {
     if (!voiceOn) return;
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
-      toast.error("Voice commands aren't supported in this browser. Try Chrome.");
+      toast.error("Continuous listening isn't supported here — use the push-to-talk button.");
       setVoiceOn(false);
       return;
     }
@@ -91,24 +175,9 @@ export default function CookingMode() {
     rec.lang = langCode;
 
     rec.onresult = (e: any) => {
-      const transcript = String(e.results[e.results.length - 1][0].transcript).toLowerCase().trim();
-      const h = handlersRef.current;
-      const isNext = /\b(next|forward|continue)\b/.test(transcript) || /आगे|अगला/i.test(transcript);
-      const isPrev = /\b(previous|back|go back)\b/.test(transcript) || /पीछे|पिछला|वापस/i.test(transcript);
-      const isRepeat = /\b(repeat|again|say again)\b/.test(transcript) || /दोबारा|फिर से|दोहराओ/i.test(transcript);
-      const isStart = /\b(start timer|start the timer|begin timer)\b/.test(transcript) || /टाइमर चालू|टाइमर शुरू/i.test(transcript);
-      const isPause = /\b(pause|stop timer|pause timer)\b/.test(transcript) || /रोको|रुको|टाइमर बंद/i.test(transcript);
-      const isReset = /\b(reset timer|restart timer)\b/.test(transcript) || /टाइमर रीसेट/i.test(transcript);
-      if (isReset) {
-        if (h.step?.duration) {
-          setTimerSeconds(h.step.duration);
-          setTimerRunning(false);
-        }
-      } else if (isStart) setTimerRunning(true);
-      else if (isPause) setTimerRunning(false);
-      else if (isNext) h.goNext();
-      else if (isPrev) h.goPrev();
-      else if (isRepeat && h.step) h.speak(h.step.instruction);
+      const transcript = String(e.results[e.results.length - 1][0].transcript).trim();
+      setHeard(`"${transcript}"`);
+      applyRef.current(matchCommand(transcript));
     };
     rec.onerror = (e: any) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
@@ -129,6 +198,14 @@ export default function CookingMode() {
       window.speechSynthesis.cancel();
     };
   }, [voiceOn, langCode]);
+
+  // Clear the "heard" chip after a moment
+  useEffect(() => {
+    if (!heard) return;
+    const t = setTimeout(() => setHeard(null), 3000);
+    return () => clearTimeout(t);
+  }, [heard]);
+
 
   // Reset timer when step changes
   useEffect(() => {
@@ -203,6 +280,14 @@ export default function CookingMode() {
             : 'Listening — say "next", "previous", "repeat", "start timer", "pause"'}
         </div>
       )}
+
+      {heard && (
+        <div className="px-4 pt-2 text-center text-xs font-medium text-muted-foreground">
+          Heard: {heard}
+        </div>
+      )}
+
+
 
       {/* Step content */}
       <div className="flex flex-1 flex-col items-center justify-center px-6 py-8">
@@ -299,7 +384,24 @@ export default function CookingMode() {
 
       {/* Navigation */}
       <div className="border-t bg-card/80 px-4 py-4 backdrop-blur-sm">
+        <div className="mx-auto mb-3 max-w-md">
+          <Button
+            variant={recording ? 'default' : 'outline'}
+            className={`w-full gap-2 py-5 text-sm font-semibold ${recording ? 'bg-primary animate-pulse' : ''}`}
+            onClick={togglePushToTalk}
+            disabled={transcribing}
+          >
+            {transcribing ? (
+              <><Loader2 className="h-4 w-4 animate-spin" /> Understanding…</>
+            ) : recording ? (
+              <><Radio className="h-4 w-4" /> Tap when done speaking</>
+            ) : (
+              <><Mic className="h-4 w-4" /> Tap to speak a command</>
+            )}
+          </Button>
+        </div>
         <div className="mx-auto flex max-w-md gap-3">
+
           <Button
             variant="outline"
             className="flex-1 gap-1 py-6 text-base"
