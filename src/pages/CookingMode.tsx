@@ -136,7 +136,13 @@ export default function CookingMode() {
         form.append('language', recipe?.language === 'hi' ? 'hi' : 'en');
         const { data, error } = await supabase.functions.invoke('transcribe-command', { body: form });
         if (error || !data?.text) {
-          toast.error('Could not understand that — try again.');
+          let message = data?.error || 'Could not understand that — try again.';
+          const response = (error as { context?: Response } | null)?.context;
+          if (response) {
+            const detail = await response.clone().json().catch(() => null) as { error?: string } | null;
+            if (detail?.error) message = detail.error;
+          }
+          toast.error(message);
           return;
         }
         setHeard(`"${data.text}"`);
