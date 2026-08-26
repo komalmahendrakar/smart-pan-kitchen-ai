@@ -81,12 +81,90 @@ export default function CookingMode() {
   }, [recipe, step]);
 
 
-  // Voice recognition — created once per voiceOn/language change
+  // Apply a recognized command
+  const applyCommand = useCallback((cmd: VoiceCommand) => {
+    const h = handlersRef.current;
+    if (!cmd) return false;
+    switch (cmd) {
+      case 'reset-timer':
+        if (h.step?.duration) {
+          setTimerSeconds(h.step.duration);
+          setTimerRunning(false);
+        }
+        break;
+      case 'start-timer':
+        setTimerRunning(true);
+        break;
+      case 'pause-timer':
+        setTimerRunning(false);
+        break;
+      case 'next':
+        h.goNext();
+        break;
+      case 'previous':
+        h.goPrev();
+        break;
+      case 'repeat':
+        if (h.step) h.speak(h.step.instruction);
+        break;
+    }
+    setHeard(COMMAND_LABEL[cmd]);
+    return true;
+  }, []);
+
+  const applyRef = useRef(applyCommand);
+  useEffect(() => {
+    applyRef.current = applyCommand;
+  }, [applyCommand]);
+
+  // Push-to-talk: record a short clip and transcribe with AI (accurate fallback)
+  const togglePushToTalk = useCallback(async () => {
+    if (transcribing) return;
+    if (recording && stopRecRef.current) {
+      const stop = stopRecRef.current;
+      stopRecRef.current = null;
+      setRecording(false);
+      setTranscribing(true);
+      try {
+        const blob = await stop();
+        if (blob.size < 2048) {
+          toast.error('That was too short — hold the button while you speak.');
+          return;
+        }
+        const form = new FormData();
+        form.append('file', blob, 'command.wav');
+        form.append('language', recipe?.language === 'hi' ? 'hi' : 'en');
+        const { data, error } = await supabase.functions.invoke('transcribe-command', { body: form });
+        if (error || !data?.text) {
+          toast.error('Could not understand that — try again.');
+          return;
+        }
+        setHeard(`"${data.text}"`);
+        if (!applyRef.current(matchCommand(data.text))) {
+          toast.error(`Heard "${data.text}" — try "next", "previous" or "repeat".`);
+        }
+      } catch {
+        toast.error('Voice input failed.');
+      } finally {
+        setTranscribing(false);
+      }
+      return;
+    }
+    try {
+      stopRecRef.current = await startWavRecording();
+      setRecording(true);
+      setHeard(null);
+    } catch {
+      toast.error('Microphone access is needed for voice commands.');
+    }
+  }, [recording, transcribing, recipe?.language]);
+
+  // Continuous browser recognition with fuzzy matching
   useEffect(() => {
     if (!voiceOn) return;
     const SR: any = (window as any).SpeechRecognition || (window as any).webkitSpeechRecognition;
     if (!SR) {
-      toast.error("Voice commands aren't supported in this browser. Try Chrome.");
+      toast.error("Continuous listening isn't supported here — use the push-to-talk button.");
       setVoiceOn(false);
       return;
     }
@@ -97,24 +175,9 @@ export default function CookingMode() {
     rec.lang = langCode;
 
     rec.onresult = (e: any) => {
-      const transcript = String(e.results[e.results.length - 1][0].transcript).toLowerCase().trim();
-      const h = handlersRef.current;
-      const isNext = /\b(next|forward|continue)\b/.test(transcript) || /आगे|अगला/i.test(transcript);
-      const isPrev = /\b(previous|back|go back)\b/.test(transcript) || /पीछे|पिछला|वापस/i.test(transcript);
-      const isRepeat = /\b(repeat|again|say again)\b/.test(transcript) || /दोबारा|फिर से|दोहराओ/i.test(transcript);
-      const isStart = /\b(start timer|start the timer|begin timer)\b/.test(transcript) || /टाइमर चालू|टाइमर शुरू/i.test(transcript);
-      const isPause = /\b(pause|stop timer|pause timer)\b/.test(transcript) || /रोको|रुको|टाइमर बंद/i.test(transcript);
-      const isReset = /\b(reset timer|restart timer)\b/.test(transcript) || /टाइमर रीसेट/i.test(transcript);
-      if (isReset) {
-        if (h.step?.duration) {
-          setTimerSeconds(h.step.duration);
-          setTimerRunning(false);
-        }
-      } else if (isStart) setTimerRunning(true);
-      else if (isPause) setTimerRunning(false);
-      else if (isNext) h.goNext();
-      else if (isPrev) h.goPrev();
-      else if (isRepeat && h.step) h.speak(h.step.instruction);
+      const transcript = String(e.results[e.results.length - 1][0].transcript).trim();
+      setHeard(`"${transcript}"`);
+      applyRef.current(matchCommand(transcript));
     };
     rec.onerror = (e: any) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
@@ -135,6 +198,14 @@ export default function CookingMode() {
       window.speechSynthesis.cancel();
     };
   }, [voiceOn, langCode]);
+
+  // Clear the "heard" chip after a moment
+  useEffect(() => {
+    if (!heard) return;
+    const t = setTimeout(() => setHeard(null), 3000);
+    return () => clearTimeout(t);
+  }, [heard]);
+
 
   // Reset timer when step changes
   useEffect(() => {
