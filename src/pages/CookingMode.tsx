@@ -1,13 +1,14 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw, Mic, MicOff, ImageIcon, Loader2 } from 'lucide-react';
+import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw, Mic, MicOff, ImageIcon, Loader2, Radio } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
 import { getRecipeById } from '@/lib/recipe-store';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
+import { matchCommand, COMMAND_LABEL, startWavRecording, type VoiceCommand } from '@/lib/voice-commands';
 
 export default function CookingMode() {
   const { id } = useParams();
@@ -19,6 +20,11 @@ export default function CookingMode() {
   const [voiceOn, setVoiceOn] = useState(false);
   const [stepImage, setStepImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
+  const [heard, setHeard] = useState<string | null>(null);
+  const [recording, setRecording] = useState(false);
+  const [transcribing, setTranscribing] = useState(false);
+  const stopRecRef = useRef<null | (() => Promise<Blob>)>(null);
+
 
   const step = recipe?.steps[stepIdx];
   const totalSteps = recipe?.steps.length || 0;
