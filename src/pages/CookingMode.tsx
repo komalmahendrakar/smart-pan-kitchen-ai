@@ -171,6 +171,8 @@ export default function CookingMode() {
       return;
     }
     try {
+      window.speechSynthesis.cancel();
+      speakingRef.current = false;
       stopRecRef.current = await startWavRecording();
       setRecording(true);
       setHeard(null);
