@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { getRecipeById } from '@/lib/recipe-store';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { matchCommand, COMMAND_LABEL, startWavRecording, type VoiceCommand } from '@/lib/voice-commands';
+import { matchCommand, COMMAND_LABEL, startWavRecording, stripWakeWord, WAKE_WORD_LABEL, type VoiceCommand } from '@/lib/voice-commands';
 
 export default function CookingMode() {
   const { id } = useParams();
