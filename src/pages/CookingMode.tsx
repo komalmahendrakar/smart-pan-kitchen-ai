@@ -287,15 +287,26 @@ export default function CookingMode() {
         <span className="text-sm font-semibold">
           Step {stepIdx + 1} of {totalSteps}
         </span>
-        <button
-          onClick={() => setVoiceOn(v => !v)}
-          aria-label={voiceOn ? 'Stop hands-free listening' : 'Start hands-free listening'}
-          className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-            voiceOn ? 'bg-primary text-primary-foreground animate-pulse' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {voiceOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setSpeakOn(v => !v)}
+            aria-label={speakOn ? 'Turn off read-aloud' : 'Read steps aloud'}
+            className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+              speakOn ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {speakOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={() => setVoiceOn(v => !v)}
+            aria-label={voiceOn ? 'Stop hands-free listening' : 'Start hands-free listening'}
+            className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+              voiceOn ? 'bg-primary text-primary-foreground animate-pulse' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {voiceOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       <Progress value={progress} className="h-1 rounded-none" />
