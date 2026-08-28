@@ -1,7 +1,7 @@
 import { useState, useEffect, useCallback, useRef } from 'react';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion, AnimatePresence } from 'framer-motion';
-import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw, Mic, MicOff, ImageIcon, Loader2, Radio } from 'lucide-react';
+import { ArrowLeft, ArrowRight, X, Timer, Lightbulb, Play, Pause, RotateCcw, Mic, MicOff, ImageIcon, Loader2, Radio, Volume2, VolumeX } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent } from '@/components/ui/card';
 import { Progress } from '@/components/ui/progress';
@@ -18,6 +18,8 @@ export default function CookingMode() {
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const [timerRunning, setTimerRunning] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
+  const [speakOn, setSpeakOn] = useState(false);
+  const speakingRef = useRef(false);
   const [stepImage, setStepImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
@@ -41,6 +43,9 @@ export default function CookingMode() {
     if (!('speechSynthesis' in window)) return;
     const u = new SpeechSynthesisUtterance(text);
     u.lang = langCode;
+    u.onstart = () => { speakingRef.current = true; };
+    u.onend = () => { speakingRef.current = false; };
+    u.onerror = () => { speakingRef.current = false; };
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
   }, [langCode]);
@@ -51,11 +56,19 @@ export default function CookingMode() {
     handlersRef.current = { goNext, goPrev, speak, step };
   }, [goNext, goPrev, speak, step]);
 
-  // Speak instruction whenever step changes (if voice is on)
+  // Speak instruction whenever step changes (only if read-aloud is on)
   useEffect(() => {
-    if (!voiceOn || !step) return;
+    if (!speakOn || !step) return;
     speak(step.instruction);
-  }, [stepIdx, voiceOn, step, speak]);
+  }, [stepIdx, speakOn, step, speak]);
+
+  // Stop any speech when read-aloud is turned off
+  useEffect(() => {
+    if (!speakOn && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      speakingRef.current = false;
+    }
+  }, [speakOn]);
 
   // Load cached step image (no auto-generation — images are on demand to save credits)
   useEffect(() => {
@@ -158,6 +171,8 @@ export default function CookingMode() {
       return;
     }
     try {
+      window.speechSynthesis.cancel();
+      speakingRef.current = false;
       stopRecRef.current = await startWavRecording();
       setRecording(true);
       setHeard(null);
@@ -182,9 +197,12 @@ export default function CookingMode() {
     rec.lang = langCode;
 
     rec.onresult = (e: any) => {
+      if (speakingRef.current) return; // ignore the app's own read-aloud voice
       const transcript = String(e.results[e.results.length - 1][0].transcript).trim();
       const after = stripWakeWord(transcript);
       if (after === null) return; // ignore chatter without the wake word
+      window.speechSynthesis.cancel(); // stop read-aloud so the command is heard clearly
+      speakingRef.current = false;
       setHeard(`"${transcript}"`);
       if (!applyRef.current(matchCommand(after))) {
         toast.error(`Heard "${transcript}" — try "${WAKE_WORD_LABEL}, next".`);
@@ -207,7 +225,6 @@ export default function CookingMode() {
     return () => {
       stopped = true;
       try { rec.stop(); } catch { /* noop */ }
-      window.speechSynthesis.cancel();
     };
   }, [voiceOn, langCode]);
 
@@ -272,15 +289,26 @@ export default function CookingMode() {
         <span className="text-sm font-semibold">
           Step {stepIdx + 1} of {totalSteps}
         </span>
-        <button
-          onClick={() => setVoiceOn(v => !v)}
-          aria-label={voiceOn ? 'Stop hands-free listening' : 'Start hands-free listening'}
-          className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
-            voiceOn ? 'bg-primary text-primary-foreground animate-pulse' : 'text-muted-foreground hover:text-foreground'
-          }`}
-        >
-          {voiceOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
-        </button>
+        <div className="flex items-center gap-1">
+          <button
+            onClick={() => setSpeakOn(v => !v)}
+            aria-label={speakOn ? 'Turn off read-aloud' : 'Read steps aloud'}
+            className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+              speakOn ? 'bg-secondary text-secondary-foreground' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {speakOn ? <Volume2 className="h-4 w-4" /> : <VolumeX className="h-4 w-4" />}
+          </button>
+          <button
+            onClick={() => setVoiceOn(v => !v)}
+            aria-label={voiceOn ? 'Stop hands-free listening' : 'Start hands-free listening'}
+            className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
+              voiceOn ? 'bg-primary text-primary-foreground animate-pulse' : 'text-muted-foreground hover:text-foreground'
+            }`}
+          >
+            {voiceOn ? <Mic className="h-4 w-4" /> : <MicOff className="h-4 w-4" />}
+          </button>
+        </div>
       </div>
 
       <Progress value={progress} className="h-1 rounded-none" />
