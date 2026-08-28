@@ -43,6 +43,9 @@ export default function CookingMode() {
     if (!('speechSynthesis' in window)) return;
     const u = new SpeechSynthesisUtterance(text);
     u.lang = langCode;
+    u.onstart = () => { speakingRef.current = true; };
+    u.onend = () => { speakingRef.current = false; };
+    u.onerror = () => { speakingRef.current = false; };
     window.speechSynthesis.cancel();
     window.speechSynthesis.speak(u);
   }, [langCode]);
