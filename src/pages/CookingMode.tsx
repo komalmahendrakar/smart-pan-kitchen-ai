@@ -195,9 +195,12 @@ export default function CookingMode() {
     rec.lang = langCode;
 
     rec.onresult = (e: any) => {
+      if (speakingRef.current) return; // ignore the app's own read-aloud voice
       const transcript = String(e.results[e.results.length - 1][0].transcript).trim();
       const after = stripWakeWord(transcript);
       if (after === null) return; // ignore chatter without the wake word
+      window.speechSynthesis.cancel(); // stop read-aloud so the command is heard clearly
+      speakingRef.current = false;
       setHeard(`"${transcript}"`);
       if (!applyRef.current(matchCommand(after))) {
         toast.error(`Heard "${transcript}" — try "${WAKE_WORD_LABEL}, next".`);
