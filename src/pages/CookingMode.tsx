@@ -182,9 +182,14 @@ export default function CookingMode() {
 
     rec.onresult = (e: any) => {
       const transcript = String(e.results[e.results.length - 1][0].transcript).trim();
+      const after = stripWakeWord(transcript);
+      if (after === null) return; // ignore chatter without the wake word
       setHeard(`"${transcript}"`);
-      applyRef.current(matchCommand(transcript));
+      if (!applyRef.current(matchCommand(after))) {
+        toast.error(`Heard "${transcript}" — try "${WAKE_WORD_LABEL}, next".`);
+      }
     };
+
     rec.onerror = (e: any) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         toast.error('Microphone access denied — allow mic access to use voice commands.');
