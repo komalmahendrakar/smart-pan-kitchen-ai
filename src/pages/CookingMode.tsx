@@ -223,7 +223,6 @@ export default function CookingMode() {
     return () => {
       stopped = true;
       try { rec.stop(); } catch { /* noop */ }
-      window.speechSynthesis.cancel();
     };
   }, [voiceOn, langCode]);
 
