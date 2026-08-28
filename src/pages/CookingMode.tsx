@@ -56,11 +56,19 @@ export default function CookingMode() {
     handlersRef.current = { goNext, goPrev, speak, step };
   }, [goNext, goPrev, speak, step]);
 
-  // Speak instruction whenever step changes (if voice is on)
+  // Speak instruction whenever step changes (only if read-aloud is on)
   useEffect(() => {
-    if (!voiceOn || !step) return;
+    if (!speakOn || !step) return;
     speak(step.instruction);
-  }, [stepIdx, voiceOn, step, speak]);
+  }, [stepIdx, speakOn, step, speak]);
+
+  // Stop any speech when read-aloud is turned off
+  useEffect(() => {
+    if (!speakOn && 'speechSynthesis' in window) {
+      window.speechSynthesis.cancel();
+      speakingRef.current = false;
+    }
+  }, [speakOn]);
 
   // Load cached step image (no auto-generation — images are on demand to save credits)
   useEffect(() => {
