@@ -8,7 +8,7 @@ import { Progress } from '@/components/ui/progress';
 import { getRecipeById } from '@/lib/recipe-store';
 import { supabase } from '@/integrations/supabase/client';
 import { toast } from 'sonner';
-import { matchCommand, COMMAND_LABEL, startWavRecording, type VoiceCommand } from '@/lib/voice-commands';
+import { matchCommand, COMMAND_LABEL, startWavRecording, stripWakeWord, WAKE_WORD_LABEL, type VoiceCommand } from '@/lib/voice-commands';
 
 export default function CookingMode() {
   const { id } = useParams();
@@ -146,9 +146,10 @@ export default function CookingMode() {
           return;
         }
         setHeard(`"${data.text}"`);
-        if (!applyRef.current(matchCommand(data.text))) {
+        if (!applyRef.current(matchCommand(stripWakeWord(data.text) ?? data.text))) {
           toast.error(`Heard "${data.text}" — try "next", "previous" or "repeat".`);
         }
+
       } catch {
         toast.error('Voice input failed.');
       } finally {
@@ -182,9 +183,14 @@ export default function CookingMode() {
 
     rec.onresult = (e: any) => {
       const transcript = String(e.results[e.results.length - 1][0].transcript).trim();
+      const after = stripWakeWord(transcript);
+      if (after === null) return; // ignore chatter without the wake word
       setHeard(`"${transcript}"`);
-      applyRef.current(matchCommand(transcript));
+      if (!applyRef.current(matchCommand(after))) {
+        toast.error(`Heard "${transcript}" — try "${WAKE_WORD_LABEL}, next".`);
+      }
     };
+
     rec.onerror = (e: any) => {
       if (e.error === 'not-allowed' || e.error === 'service-not-allowed') {
         toast.error('Microphone access denied — allow mic access to use voice commands.');
@@ -268,7 +274,7 @@ export default function CookingMode() {
         </span>
         <button
           onClick={() => setVoiceOn(v => !v)}
-          aria-label="Toggle voice commands"
+          aria-label={voiceOn ? 'Stop hands-free listening' : 'Start hands-free listening'}
           className={`flex h-8 w-8 items-center justify-center rounded-full transition-colors ${
             voiceOn ? 'bg-primary text-primary-foreground animate-pulse' : 'text-muted-foreground hover:text-foreground'
           }`}
@@ -280,12 +286,18 @@ export default function CookingMode() {
       <Progress value={progress} className="h-1 rounded-none" />
 
       {voiceOn && (
-        <div className="bg-primary/10 px-4 py-2 text-center text-xs text-primary">
-          🎙️ {recipe.language === 'hi'
-            ? 'सुन रहे हैं — कहें "अगला", "पिछला", "दोबारा", "टाइमर चालू", "रोको"'
-            : 'Listening — say "next", "previous", "repeat", "start timer", "pause"'}
+        <div className="flex items-center justify-between gap-2 bg-primary/10 px-4 py-2 text-xs text-primary">
+          <span className="flex-1 text-left">
+            🎙️ {recipe.language === 'hi'
+              ? 'हैंड्स-फ्री चालू — कहें "स्मार्ट पैन, अगला" / "स्मार्ट पैन, दोबारा"'
+              : `Hands-free on — say "${WAKE_WORD_LABEL}, next" or "${WAKE_WORD_LABEL}, repeat"`}
+          </span>
+          <Button size="sm" variant="outline" className="h-7 shrink-0 px-2 text-xs" onClick={() => setVoiceOn(false)}>
+            Stop listening
+          </Button>
         </div>
       )}
+
 
       {heard && (
         <div className="px-4 pt-2 text-center text-xs font-medium text-muted-foreground">

@@ -7,12 +7,36 @@ export type VoiceCommand =
   | 'reset-timer'
   | null;
 
+const normalize = (raw: string) =>
+  raw.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+
+/** Wake-word aliases ("Smart Pan"), tolerant of mis-hearings and Hindi/Urdu script. */
+const WAKE_WORDS = [
+  'smart pan', 'smartpan', 'smart pain', 'smart pen', 'smart ban', 'smart man',
+  'smartphone pan', 'start pan', 'smart pang', 'hey smart', 'smart',
+  'स्मार्ट पैन', 'स्मार्टपैन', 'स्मार्ट पेन', 'स्मार्ट', 'اسمارٹ پین', 'سمارٹ پین',
+];
+
+/** Returns the command text after the wake word, or null if the wake word wasn't said. */
+export function stripWakeWord(rawTranscript: string): string | null {
+  const t = normalize(rawTranscript);
+  if (!t) return null;
+  for (const w of WAKE_WORDS) {
+    const i = t.indexOf(w);
+    if (i !== -1) return t.slice(i + w.length).trim();
+  }
+  return null;
+}
+
+export const WAKE_WORD_LABEL = 'Smart Pan';
+
 /** Fuzzy command matching — tolerates common mis-hearings from speech engines. */
 export function matchCommand(rawTranscript: string): VoiceCommand {
-  const t = rawTranscript.normalize('NFC').toLowerCase().replace(/[^\p{L}\p{M}\p{N}\s]/gu, ' ').replace(/\s+/g, ' ').trim();
+  const t = normalize(rawTranscript);
   if (!t) return null;
 
   const has = (words: string[]) => words.some(w => t.includes(w));
+
 
   if (has(['reset timer', 'restart timer', 'reset the timer', 'टाइमर रीसेट', 'टाइमर फिर'])) return 'reset-timer';
   if (has(['start timer', 'start the timer', 'begin timer', 'stat timer', 'timer start', 'टाइमर चालू', 'टाइमर शुरू'])) return 'start-timer';
