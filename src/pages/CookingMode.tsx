@@ -146,9 +146,10 @@ export default function CookingMode() {
           return;
         }
         setHeard(`"${data.text}"`);
-        if (!applyRef.current(matchCommand(data.text))) {
+        if (!applyRef.current(matchCommand(stripWakeWord(data.text) ?? data.text))) {
           toast.error(`Heard "${data.text}" — try "next", "previous" or "repeat".`);
         }
+
       } catch {
         toast.error('Voice input failed.');
       } finally {
