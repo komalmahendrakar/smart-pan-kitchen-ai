@@ -18,6 +18,8 @@ export default function CookingMode() {
   const [timerSeconds, setTimerSeconds] = useState<number | null>(null);
   const [timerRunning, setTimerRunning] = useState(false);
   const [voiceOn, setVoiceOn] = useState(false);
+  const [speakOn, setSpeakOn] = useState(false);
+  const speakingRef = useRef(false);
   const [stepImage, setStepImage] = useState<string | null>(null);
   const [imageLoading, setImageLoading] = useState(false);
   const [heard, setHeard] = useState<string | null>(null);
