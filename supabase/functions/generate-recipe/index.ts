@@ -15,6 +15,23 @@ function isInstagramUrl(url: string): boolean {
   return /instagram\.com\/(reel|p|tv)\//i.test(url);
 }
 
+// Fetch the real video title/description via YouTube oEmbed (free, no key)
+async function fetchVideoTitle(videoUrl: string): Promise<string | null> {
+  try {
+    const resp = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`,
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const title = typeof data?.title === 'string' ? data.title.trim() : '';
+    const author = typeof data?.author_name === 'string' ? data.author_name.trim() : '';
+    if (!title) return null;
+    return author ? `${title} (by ${author})` : title;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchSupadataTranscript(
   videoUrl: string,
   apiKey: string,
@@ -71,22 +88,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Try to extract a real transcript
+    // Try to extract a real transcript AND the real video title in parallel
     let transcript: string | null = null;
-    let source: 'supadata-youtube' | 'supadata-instagram' | 'supadata-other' | 'url-only' = 'url-only';
+    let source: 'supadata-youtube' | 'supadata-instagram' | 'supadata-other' | 'metadata-only' = 'metadata-only';
 
     const SUPADATA_API_KEY = Deno.env.get('SUPADATA_API_KEY');
     const ytId = extractYouTubeId(videoUrl);
     const isIg = isInstagramUrl(videoUrl);
 
-    if (SUPADATA_API_KEY) {
-      const { text } = await fetchSupadataTranscript(videoUrl, SUPADATA_API_KEY);
-      if (text) {
-        transcript = text;
-        source = ytId ? 'supadata-youtube' : isIg ? 'supadata-instagram' : 'supadata-other';
-      }
-    } else {
-      console.warn('SUPADATA_API_KEY not set — falling back to URL-only inference');
+    const [transcriptResult, videoTitle] = await Promise.all([
+      SUPADATA_API_KEY
+        ? fetchSupadataTranscript(videoUrl, SUPADATA_API_KEY)
+        : Promise.resolve({ text: null, error: 'SUPADATA_API_KEY not set' }),
+      ytId ? fetchVideoTitle(videoUrl) : Promise.resolve(null),
+    ]);
+
+    if (transcriptResult.text) {
+      transcript = transcriptResult.text;
+      source = ytId ? 'supadata-youtube' : isIg ? 'supadata-instagram' : 'supadata-other';
+    }
+
+    // Nothing readable at all → refuse instead of inventing a random recipe
+    if (!transcript && !videoTitle) {
+      return new Response(JSON.stringify({
+        error: "We couldn't read this video. Make sure it's a public cooking video with captions/subtitles enabled, then try again.",
+      }), {
+        status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Cap transcript length to keep prompt reasonable
@@ -97,6 +125,10 @@ Deno.serve(async (req) => {
     const recipeSchema = {
       type: 'object',
       properties: {
+        foundRecipeInContent: {
+          type: 'boolean',
+          description: 'true ONLY if the provided transcript/title actually describes a specific dish being cooked. false if the content is not a cooking recipe (e.g. vlog, music, unrelated video).',
+        },
         name: { type: 'string', description: 'Name of the dish' },
         cookingTime: { type: 'string', description: 'Total time, e.g. "30 mins"' },
         difficulty: { type: 'string', enum: ['Easy', 'Medium', 'Hard'] },
@@ -141,7 +173,7 @@ Deno.serve(async (req) => {
           additionalProperties: false,
         },
       },
-      required: ['name', 'cookingTime', 'difficulty', 'servings', 'ingredients', 'steps', 'nutrition'],
+      required: ['foundRecipeInContent', 'name', 'cookingTime', 'difficulty', 'servings', 'ingredients', 'steps', 'nutrition'],
       additionalProperties: false,
     };
 
@@ -153,8 +185,10 @@ Deno.serve(async (req) => {
 Produce a complete, realistic, structured recipe.
 ${languageInstruction}
 Rules:
+- ACCURACY FIRST: never invent a generic or unrelated recipe. The recipe MUST be the actual dish from the provided content.
+- First decide "foundRecipeInContent": if a transcript is provided, it must actually describe cooking a dish (ingredients/method spoken). If the transcript is just chatter, music lyrics, or a non-cooking video, set it to false. If only a title is provided, set it to true only when the title clearly names a dish or recipe.
 - If a transcript is provided, base the recipe STRICTLY on what is actually said/shown in the video. Extract the real dish name, ingredients, quantities, and steps from the transcript. Fill obvious gaps (e.g. salt to taste) sensibly but do not invent unrelated ingredients.
-- If no transcript is provided, infer the most likely dish from the URL slug/title.
+- If only a video title is provided (no transcript), generate the authentic, traditional recipe for exactly the dish named in that title — do not drift to a different dish.
 - Provide accurate ingredient quantities and units for the given servings.
 - Steps must be clear and ordered. Add a "duration" in seconds for steps that involve waiting/cooking time (omit for quick prep steps).
 - Every step MUST include a short, warm "tip" — a grandma-style insight or trick.
@@ -162,8 +196,8 @@ Rules:
 - Estimate nutrition per serving in realistic numbers.`;
 
     const userPrompt = transcript
-      ? `Cooking video URL: ${videoUrl}\n\nFull spoken transcript from the video:\n"""\n${transcript}\n"""\n\nGenerate the structured recipe based on this transcript.`
-      : `Generate a structured recipe for this cooking video URL: ${videoUrl}\n(No transcript available — infer from the URL.)`;
+      ? `Cooking video URL: ${videoUrl}\n${videoTitle ? `Video title: ${videoTitle}\n` : ''}\nFull spoken transcript from the video:\n"""\n${transcript}\n"""\n\nGenerate the structured recipe based on this transcript.`
+      : `Video title: ${videoTitle}\nVideo URL: ${videoUrl}\n(No spoken transcript available — generate the authentic recipe for exactly the dish named in the title.)`;
 
     const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
@@ -218,7 +252,20 @@ Rules:
 
     const recipe = JSON.parse(toolCall.function.arguments);
 
-    return new Response(JSON.stringify({ recipe, transcriptSource: source }), {
+    if (recipe.foundRecipeInContent === false) {
+      return new Response(JSON.stringify({
+        error: "This video doesn't seem to contain a cooking recipe — try a video where a dish is actually being made.",
+      }), {
+        status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    delete recipe.foundRecipeInContent;
+
+    return new Response(JSON.stringify({
+      recipe,
+      transcriptSource: source,
+      approximate: source === 'metadata-only',
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {

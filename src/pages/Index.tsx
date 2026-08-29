@@ -44,8 +44,19 @@ const Index = () => {
       const { data, error } = await supabase.functions.invoke('generate-recipe', {
         body: { videoUrl: url, language },
       });
-      if (error) throw error;
+      if (error) {
+        // Read the real error message from the function response body
+        const body = await (error as { context?: Response }).context?.clone().json().catch(() => null);
+        throw new Error(body?.error || error.message);
+      }
+      if (data?.error) throw new Error(data.error);
       if (!data?.recipe) throw new Error('No recipe returned');
+      if (data.approximate) {
+        toast({
+          title: 'No captions found on this video',
+          description: 'Recipe is inferred from the video title — double-check it matches!',
+        });
+      }
       const recipe: Recipe = {
         ...data.recipe,
         id: Date.now().toString(),
