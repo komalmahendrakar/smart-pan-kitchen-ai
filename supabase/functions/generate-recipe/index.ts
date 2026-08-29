@@ -88,22 +88,33 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Try to extract a real transcript
+    // Try to extract a real transcript AND the real video title in parallel
     let transcript: string | null = null;
-    let source: 'supadata-youtube' | 'supadata-instagram' | 'supadata-other' | 'url-only' = 'url-only';
+    let source: 'supadata-youtube' | 'supadata-instagram' | 'supadata-other' | 'metadata-only' = 'metadata-only';
 
     const SUPADATA_API_KEY = Deno.env.get('SUPADATA_API_KEY');
     const ytId = extractYouTubeId(videoUrl);
     const isIg = isInstagramUrl(videoUrl);
 
-    if (SUPADATA_API_KEY) {
-      const { text } = await fetchSupadataTranscript(videoUrl, SUPADATA_API_KEY);
-      if (text) {
-        transcript = text;
-        source = ytId ? 'supadata-youtube' : isIg ? 'supadata-instagram' : 'supadata-other';
-      }
-    } else {
-      console.warn('SUPADATA_API_KEY not set — falling back to URL-only inference');
+    const [transcriptResult, videoTitle] = await Promise.all([
+      SUPADATA_API_KEY
+        ? fetchSupadataTranscript(videoUrl, SUPADATA_API_KEY)
+        : Promise.resolve({ text: null, error: 'SUPADATA_API_KEY not set' }),
+      ytId ? fetchVideoTitle(videoUrl) : Promise.resolve(null),
+    ]);
+
+    if (transcriptResult.text) {
+      transcript = transcriptResult.text;
+      source = ytId ? 'supadata-youtube' : isIg ? 'supadata-instagram' : 'supadata-other';
+    }
+
+    // Nothing readable at all → refuse instead of inventing a random recipe
+    if (!transcript && !videoTitle) {
+      return new Response(JSON.stringify({
+        error: "We couldn't read this video. Make sure it's a public cooking video with captions/subtitles enabled, then try again.",
+      }), {
+        status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
     }
 
     // Cap transcript length to keep prompt reasonable
