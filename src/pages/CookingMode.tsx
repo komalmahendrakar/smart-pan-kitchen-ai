@@ -234,6 +234,14 @@ export default function CookingMode() {
     };
   }, [voiceOn, langCode]);
 
+  // Reset the listening banner when hands-free is turned off
+  useEffect(() => {
+    if (!voiceOn) {
+      setListeningForCommand(false);
+      if (listenTimeoutRef.current) clearTimeout(listenTimeoutRef.current);
+    }
+  }, [voiceOn]);
+
   // Clear the "heard" chip after a moment
   useEffect(() => {
     if (!heard) return;
