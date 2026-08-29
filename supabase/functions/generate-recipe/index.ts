@@ -15,6 +15,23 @@ function isInstagramUrl(url: string): boolean {
   return /instagram\.com\/(reel|p|tv)\//i.test(url);
 }
 
+// Fetch the real video title/description via YouTube oEmbed (free, no key)
+async function fetchVideoTitle(videoUrl: string): Promise<string | null> {
+  try {
+    const resp = await fetch(
+      `https://www.youtube.com/oembed?url=${encodeURIComponent(videoUrl)}&format=json`,
+    );
+    if (!resp.ok) return null;
+    const data = await resp.json();
+    const title = typeof data?.title === 'string' ? data.title.trim() : '';
+    const author = typeof data?.author_name === 'string' ? data.author_name.trim() : '';
+    if (!title) return null;
+    return author ? `${title} (by ${author})` : title;
+  } catch {
+    return null;
+  }
+}
+
 async function fetchSupadataTranscript(
   videoUrl: string,
   apiKey: string,
