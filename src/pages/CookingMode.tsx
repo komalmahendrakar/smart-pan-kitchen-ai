@@ -25,6 +25,8 @@ export default function CookingMode() {
   const [heard, setHeard] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [listeningForCommand, setListeningForCommand] = useState(false);
+  const listenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopRecRef = useRef<null | (() => Promise<Blob>)>(null);
 
 
@@ -201,6 +203,10 @@ export default function CookingMode() {
       const transcript = String(e.results[e.results.length - 1][0].transcript).trim();
       const after = stripWakeWord(transcript);
       if (after === null) return; // ignore chatter without the wake word
+      // Wake word detected — show the "listening" banner while we process
+      setListeningForCommand(true);
+      if (listenTimeoutRef.current) clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = setTimeout(() => setListeningForCommand(false), 2500);
       window.speechSynthesis.cancel(); // stop read-aloud so the command is heard clearly
       speakingRef.current = false;
       setHeard(`"${transcript}"`);
@@ -227,6 +233,14 @@ export default function CookingMode() {
       try { rec.stop(); } catch { /* noop */ }
     };
   }, [voiceOn, langCode]);
+
+  // Reset the listening banner when hands-free is turned off
+  useEffect(() => {
+    if (!voiceOn) {
+      setListeningForCommand(false);
+      if (listenTimeoutRef.current) clearTimeout(listenTimeoutRef.current);
+    }
+  }, [voiceOn]);
 
   // Clear the "heard" chip after a moment
   useEffect(() => {
@@ -313,7 +327,42 @@ export default function CookingMode() {
 
       <Progress value={progress} className="h-1 rounded-none" />
 
-      {voiceOn && (
+      {/* Listening banner — slides in from the top when the wake word is heard */}
+      <AnimatePresence>
+        {voiceOn && listeningForCommand && (
+          <motion.div
+            initial={{ y: -48, opacity: 0 }}
+            animate={{ y: 0, opacity: 1 }}
+            exit={{ y: -48, opacity: 0 }}
+            transition={{ duration: 0.2 }}
+            className="flex items-center justify-between gap-3 border-b border-primary/30 bg-primary px-4 py-2.5 text-primary-foreground shadow-lg shadow-primary/30"
+          >
+            <span className="flex items-center gap-2 text-sm font-semibold">
+              {/* animated sound-wave bars */}
+              <span className="flex items-end gap-0.5" aria-hidden>
+                {[0, 1, 2, 3].map(i => (
+                  <motion.span
+                    key={i}
+                    className="w-1 rounded-full bg-primary-foreground"
+                    animate={{ height: [4, 14, 4] }}
+                    transition={{ duration: 0.8, repeat: Infinity, delay: i * 0.15 }}
+                  />
+                ))}
+              </span>
+              {recipe.language === 'hi' ? 'स्मार्ट पैन सुन रहा है…' : 'Smart Pan is listening…'}
+            </span>
+            <button
+              onClick={() => setVoiceOn(false)}
+              className="shrink-0 rounded-full bg-primary-foreground/15 px-3 py-1 text-xs font-medium hover:bg-primary-foreground/25"
+            >
+              Stop
+            </button>
+          </motion.div>
+        )}
+      </AnimatePresence>
+
+      {/* Idle hands-free hint */}
+      {voiceOn && !listeningForCommand && (
         <div className="flex items-center justify-between gap-2 bg-primary/10 px-4 py-2 text-xs text-primary">
           <span className="flex-1 text-left">
             🎙️ {recipe.language === 'hi'
