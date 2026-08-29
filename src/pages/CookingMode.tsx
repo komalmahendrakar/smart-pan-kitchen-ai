@@ -203,6 +203,10 @@ export default function CookingMode() {
       const transcript = String(e.results[e.results.length - 1][0].transcript).trim();
       const after = stripWakeWord(transcript);
       if (after === null) return; // ignore chatter without the wake word
+      // Wake word detected — show the "listening" banner while we process
+      setListeningForCommand(true);
+      if (listenTimeoutRef.current) clearTimeout(listenTimeoutRef.current);
+      listenTimeoutRef.current = setTimeout(() => setListeningForCommand(false), 2500);
       window.speechSynthesis.cancel(); // stop read-aloud so the command is heard clearly
       speakingRef.current = false;
       setHeard(`"${transcript}"`);
