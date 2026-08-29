@@ -252,7 +252,20 @@ Rules:
 
     const recipe = JSON.parse(toolCall.function.arguments);
 
-    return new Response(JSON.stringify({ recipe, transcriptSource: source }), {
+    if (recipe.foundRecipeInContent === false) {
+      return new Response(JSON.stringify({
+        error: "This video doesn't seem to contain a cooking recipe — try a video where a dish is actually being made.",
+      }), {
+        status: 422, headers: { ...corsHeaders, 'Content-Type': 'application/json' },
+      });
+    }
+    delete recipe.foundRecipeInContent;
+
+    return new Response(JSON.stringify({
+      recipe,
+      transcriptSource: source,
+      approximate: source === 'metadata-only',
+    }), {
       headers: { ...corsHeaders, 'Content-Type': 'application/json' },
     });
   } catch (err) {
