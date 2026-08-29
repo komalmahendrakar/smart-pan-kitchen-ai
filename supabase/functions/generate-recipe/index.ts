@@ -185,8 +185,10 @@ Deno.serve(async (req) => {
 Produce a complete, realistic, structured recipe.
 ${languageInstruction}
 Rules:
+- ACCURACY FIRST: never invent a generic or unrelated recipe. The recipe MUST be the actual dish from the provided content.
+- First decide "foundRecipeInContent": if a transcript is provided, it must actually describe cooking a dish (ingredients/method spoken). If the transcript is just chatter, music lyrics, or a non-cooking video, set it to false. If only a title is provided, set it to true only when the title clearly names a dish or recipe.
 - If a transcript is provided, base the recipe STRICTLY on what is actually said/shown in the video. Extract the real dish name, ingredients, quantities, and steps from the transcript. Fill obvious gaps (e.g. salt to taste) sensibly but do not invent unrelated ingredients.
-- If no transcript is provided, infer the most likely dish from the URL slug/title.
+- If only a video title is provided (no transcript), generate the authentic, traditional recipe for exactly the dish named in that title — do not drift to a different dish.
 - Provide accurate ingredient quantities and units for the given servings.
 - Steps must be clear and ordered. Add a "duration" in seconds for steps that involve waiting/cooking time (omit for quick prep steps).
 - Every step MUST include a short, warm "tip" — a grandma-style insight or trick.
@@ -194,8 +196,8 @@ Rules:
 - Estimate nutrition per serving in realistic numbers.`;
 
     const userPrompt = transcript
-      ? `Cooking video URL: ${videoUrl}\n\nFull spoken transcript from the video:\n"""\n${transcript}\n"""\n\nGenerate the structured recipe based on this transcript.`
-      : `Generate a structured recipe for this cooking video URL: ${videoUrl}\n(No transcript available — infer from the URL.)`;
+      ? `Cooking video URL: ${videoUrl}\n${videoTitle ? `Video title: ${videoTitle}\n` : ''}\nFull spoken transcript from the video:\n"""\n${transcript}\n"""\n\nGenerate the structured recipe based on this transcript.`
+      : `Video title: ${videoTitle}\nVideo URL: ${videoUrl}\n(No spoken transcript available — generate the authentic recipe for exactly the dish named in the title.)`;
 
     const aiResp = await fetch('https://ai.gateway.lovable.dev/v1/chat/completions', {
       method: 'POST',
