@@ -25,6 +25,8 @@ export default function CookingMode() {
   const [heard, setHeard] = useState<string | null>(null);
   const [recording, setRecording] = useState(false);
   const [transcribing, setTranscribing] = useState(false);
+  const [listeningForCommand, setListeningForCommand] = useState(false);
+  const listenTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
   const stopRecRef = useRef<null | (() => Promise<Blob>)>(null);
 
 
