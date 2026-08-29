@@ -173,7 +173,7 @@ Deno.serve(async (req) => {
           additionalProperties: false,
         },
       },
-      required: ['name', 'cookingTime', 'difficulty', 'servings', 'ingredients', 'steps', 'nutrition'],
+      required: ['foundRecipeInContent', 'name', 'cookingTime', 'difficulty', 'servings', 'ingredients', 'steps', 'nutrition'],
       additionalProperties: false,
     };
 
