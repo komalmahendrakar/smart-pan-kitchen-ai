@@ -125,6 +125,10 @@ Deno.serve(async (req) => {
     const recipeSchema = {
       type: 'object',
       properties: {
+        foundRecipeInContent: {
+          type: 'boolean',
+          description: 'true ONLY if the provided transcript/title actually describes a specific dish being cooked. false if the content is not a cooking recipe (e.g. vlog, music, unrelated video).',
+        },
         name: { type: 'string', description: 'Name of the dish' },
         cookingTime: { type: 'string', description: 'Total time, e.g. "30 mins"' },
         difficulty: { type: 'string', enum: ['Easy', 'Medium', 'Hard'] },
