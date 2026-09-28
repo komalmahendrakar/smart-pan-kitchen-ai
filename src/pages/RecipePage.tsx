@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react';
+import { scaleQuantity } from '@/lib/scale';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Clock, Users, BarChart3, ChefHat, Check, X, ExternalLink, ArrowLeft, Play } from 'lucide-react';
+import { Clock, Users, BarChart3, ChefHat, Check, X, ExternalLink, ArrowLeft, Play, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +20,9 @@ export default function RecipePage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const recipe = getRecipeById(id || '');
+  const key = `cookmate-servings-${id}`;
+  const [servings, setServings] = useState<number>(() => Number(localStorage.getItem(key)) || recipe?.servings || 1);
+  useEffect(() => { localStorage.setItem(key, String(servings)); }, [key, servings]);
 
   if (!recipe) {
     return (
@@ -27,8 +32,10 @@ export default function RecipePage() {
     );
   }
 
-  const available = recipe.ingredients.filter(i => isInPantry(i.name));
-  const missing = recipe.ingredients.filter(i => !isInPantry(i.name));
+  const factor = servings / (recipe.servings || 1);
+  const scaled = recipe.ingredients.map(i => ({ ...i, quantity: scaleQuantity(i.quantity, factor) }));
+  const available = scaled.filter(i => isInPantry(i.name));
+  const missing = scaled.filter(i => !isInPantry(i.name));
 
   const grocerySearch = (name: string, store: 'zepto' | 'blinkit') => {
     const q = encodeURIComponent(name);
@@ -51,7 +58,11 @@ export default function RecipePage() {
           <div className="mt-3 flex flex-wrap gap-2">
             <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" />{recipe.cookingTime}</Badge>
             <Badge className={difficultyColor[recipe.difficulty]}>{recipe.difficulty}</Badge>
-            <Badge variant="outline" className="gap-1"><Users className="h-3 w-3" />{recipe.servings} servings</Badge>
+            <div className="flex items-center gap-1 rounded-full border border-border bg-card px-1 py-0.5">
+              <button aria-label="Fewer servings" onClick={() => setServings(s => Math.max(1, s - 1))} className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"><Minus className="h-3 w-3" /></button>
+              <span className="flex items-center gap-1 px-1 text-xs font-semibold"><Users className="h-3 w-3" />{servings} servings</span>
+              <button aria-label="More servings" onClick={() => setServings(s => Math.min(50, s + 1))} className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"><Plus className="h-3 w-3" /></button>
+            </div>
           </div>
         </motion.div>
       </div>
