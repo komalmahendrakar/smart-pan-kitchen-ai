@@ -1,6 +1,8 @@
+import { useState, useEffect } from 'react';
+import { scaleQuantity } from '@/lib/scale';
 import { useParams, useNavigate } from 'react-router-dom';
 import { motion } from 'framer-motion';
-import { Clock, Users, BarChart3, ChefHat, Check, X, ExternalLink, ArrowLeft, Play } from 'lucide-react';
+import { Clock, Users, BarChart3, ChefHat, Check, X, ExternalLink, ArrowLeft, Play, Minus, Plus } from 'lucide-react';
 import { Button } from '@/components/ui/button';
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card';
 import { Badge } from '@/components/ui/badge';
@@ -18,6 +20,9 @@ export default function RecipePage() {
   const { id } = useParams();
   const navigate = useNavigate();
   const recipe = getRecipeById(id || '');
+  const key = `cookmate-servings-${id}`;
+  const [servings, setServings] = useState<number>(() => Number(localStorage.getItem(key)) || recipe?.servings || 1);
+  useEffect(() => { localStorage.setItem(key, String(servings)); }, [key, servings]);
 
   if (!recipe) {
     return (
@@ -27,8 +32,10 @@ export default function RecipePage() {
     );
   }
 
-  const available = recipe.ingredients.filter(i => isInPantry(i.name));
-  const missing = recipe.ingredients.filter(i => !isInPantry(i.name));
+  const factor = servings / (recipe.servings || 1);
+  const scaled = recipe.ingredients.map(i => ({ ...i, quantity: scaleQuantity(i.quantity, factor) }));
+  const available = scaled.filter(i => isInPantry(i.name));
+  const missing = scaled.filter(i => !isInPantry(i.name));
 
   const grocerySearch = (name: string, store: 'zepto' | 'blinkit') => {
     const q = encodeURIComponent(name);
