@@ -51,7 +51,11 @@ export default function RecipePage() {
           <div className="mt-3 flex flex-wrap gap-2">
             <Badge variant="outline" className="gap-1"><Clock className="h-3 w-3" />{recipe.cookingTime}</Badge>
             <Badge className={difficultyColor[recipe.difficulty]}>{recipe.difficulty}</Badge>
-            <Badge variant="outline" className="gap-1"><Users className="h-3 w-3" />{recipe.servings} servings</Badge>
+            <div className="flex items-center gap-1 rounded-full border border-border bg-card px-1 py-0.5">
+              <button aria-label="Fewer servings" onClick={() => setServings(s => Math.max(1, s - 1))} className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"><Minus className="h-3 w-3" /></button>
+              <span className="flex items-center gap-1 px-1 text-xs font-semibold"><Users className="h-3 w-3" />{servings} servings</span>
+              <button aria-label="More servings" onClick={() => setServings(s => Math.min(50, s + 1))} className="flex h-6 w-6 items-center justify-center rounded-full bg-primary/10 text-primary hover:bg-primary/20"><Plus className="h-3 w-3" /></button>
+            </div>
           </div>
         </motion.div>
       </div>
