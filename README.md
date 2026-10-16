@@ -1,73 +1,178 @@
-# Welcome to your Lovable project
+# Grandma's Recipe AI
 
-## Project info
+Build a modern AI-powered web application called CookMate AI – Smart Cooking Assistant.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+The application helps users convert cooking videos into step-by-step recipes and guides them while cooking, like a mom or grandma assisting in the kitchen.
 
-## How can I edit this code?
+The UI should be clean, modern, mobile-friendly, and designed like a cooking assistant app.
 
-There are several ways of editing your application.
+MAIN FEATURE
 
-**Use Lovable**
+The user can paste a YouTube or Instagram cooking video URL.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+The application should:
 
-Changes made via Lovable will be committed automatically to this repo.
+Extract the transcript from the video.
 
-**Use your preferred IDE**
+Use AI to convert the transcript into a structured recipe.
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+Display the recipe with ingredients, steps, and cooking information.
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+RECIPE OUTPUT FORMAT
 
-Follow these steps:
+When a video is processed, the app should show:
+
+Recipe Name
+Estimated Cooking Time
+Difficulty Level
+
+Ingredients List
+
+Step-by-step Cooking Instructions
+
+Nutrition Information:
+
+Calories
+
+Protein
+
+Carbohydrates
+
+Fat
+
+COOKING MODE
+
+Add a “Start Cooking Mode” button.
+
+In cooking mode:
+
+Show only one step at a time
+
+Buttons: Next Step / Previous Step
+
+Show a timer if the step includes cooking duration
+
+Show helpful cooking tips (like a grandma giving advice)
+
+Example tip:
+“Cook onions until golden brown for better flavor.”
+
+PANTRY AND MISSING INGREDIENT DETECTION
+
+Add a feature where users can store ingredients they already have in their pantry.
+
+The system compares the recipe ingredients with the pantry list and identifies missing ingredients.
+
+Display two lists:
+
+Available Ingredients
+Missing Ingredients
+
+GROCERY INTEGRATION
+
+For missing ingredients add buttons:
+
+“Order from Zepto”
+“Search on Blinkit”
+
+Clicking these buttons should open grocery search links for the missing ingredients.
+
+NUTRITION ANALYSIS
+
+Automatically estimate nutrition values of the recipe including:
+
+Calories
+Protein
+Fat
+Carbohydrates
+
+Use AI to estimate these values based on the ingredients.
+
+GRANDMA MODE (AI COOKING ASSISTANT)
+
+Add a feature where AI gives cooking tips during each step.
+
+Examples:
+“Add a pinch of sugar to balance tomato acidity.”
+“Do not overcook garlic or it will become bitter.”
+
+This should feel like a human cooking assistant.
+
+VOICE FRIENDLY DESIGN (Optional UI support)
+
+Design the interface so it could support voice commands like:
+
+“Next step”
+“Repeat step”
+
+MAIN PAGES
+
+Home Page
+
+App title
+
+Input field for video URL
+
+Button: Generate Recipe
+
+Recipe Page
+
+Recipe details
+
+Ingredients
+
+Missing ingredients
+
+Nutrition info
+
+Start Cooking Mode button
+
+Cooking Mode Page
+
+One step at a time
+
+Navigation buttons
+
+Cooking tips
+
+Timer
+
+Pantry Page
+
+User can add ingredients they already have
+
+DESIGN STYLE
+
+Clean kitchen-style UI
+Warm colors like cream, orange, and green
+Rounded cards for recipe sections
+Mobile-first responsive design
+
+TECH STACK
+
+Frontend: React with modern UI components
+Use a clean component-based architecture
+Prepare the structure so it can integrate with AI APIs and transcript APIs.
+
+Make the interface feel like a smart AI cooking companion.
+
+This project was built with [Lovable](https://lovable.dev).
+
+## Build with Lovable
+
+Continue developing this project in the [Lovable editor](https://lovable.dev/projects/222442f5-8cd8-49a1-9f66-736b458e5c18).
+
+- **Ship faster**: describe what you want to build and Lovable handles the code.
+- **Stay in sync**: every change made in Lovable is committed straight to this repository.
+- **Full ownership**: this code is yours. Push to `main` on GitHub and your changes sync back into Lovable, ready for your next prompt.
+
+## Development
+
+Prefer working locally? You need Node.js and npm — [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating).
 
 ```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
-
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
-
-# Step 3: Install the necessary dependencies.
+git clone <this-repository-url>
+cd <repository-name>
 npm i
-
-# Step 4: Start the development server with auto-reloading and an instant preview.
 npm run dev
 ```
-
-**Edit a file directly in GitHub**
-
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
-
-**Use GitHub Codespaces**
-
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
-
-## What technologies are used for this project?
-
-This project is built with:
-
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
-
-## How can I deploy this project?
-
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
-
-## Can I connect a custom domain to my Lovable project?
-
-Yes, you can!
-
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
-
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
